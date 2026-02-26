@@ -34,13 +34,19 @@ def handle_realtime(args):
         if args.top:
             print(f"\n=== 涨幅前{args.top}名 ===")
             top_gainers = fetcher.get_top_gainers(args.top)
-            print(top_gainers[['代码', '名称', '最新价', '涨跌幅', '成交量']].to_string())
+            # 同花顺数据源没有'成交量'字段，只显示代码、名称、最新价、涨跌幅
+            display_cols = ['代码', '名称', '最新价', '涨跌幅']
+            available_cols = [col for col in display_cols if col in top_gainers.columns]
+            print(top_gainers[available_cols].to_string(index=False))
             
             print(f"\n=== 跌幅前{args.top}名 ===")
             top_losers = fetcher.get_top_losers(args.top)
-            print(top_losers[['代码', '名称', '最新价', '涨跌幅', '成交量']].to_string())
+            available_cols = [col for col in display_cols if col in top_losers.columns]
+            print(top_losers[available_cols].to_string(index=False))
         else:
-            print(df[['代码', '名称', '最新价', '涨跌幅', '成交量']].head(20).to_string())
+            display_cols = ['代码', '名称', '最新价', '涨跌幅']
+            available_cols = [col for col in display_cols if col in df.columns]
+            print(df[available_cols].head(20).to_string(index=False))
             print(f"\n总共 {len(df)} 个ETF")
 
 
