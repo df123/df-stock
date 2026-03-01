@@ -63,19 +63,28 @@ onMounted(() => {
   loadData()
 })
 
+const allData = ref([])
+
 const loadData = async () => {
   loading.value = true
   try {
-    const response = await realtimeAPI.getAll(pageSize.value)
+    const response = await realtimeAPI.getAll()
     if (response.success) {
-      realtimeData.value = response.data
+      allData.value = response.data
       total.value = response.data.length
+      updateDisplayedData()
     }
   } catch (error) {
     console.error('加载实时数据失败:', error)
   } finally {
     loading.value = false
   }
+}
+
+const updateDisplayedData = () => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  realtimeData.value = allData.value.slice(start, end)
 }
 
 const search = async () => {
@@ -107,10 +116,13 @@ const getColorStyle = (value) => {
 
 const handlePageChange = (page) => {
   currentPage.value = page
+  updateDisplayedData()
 }
 
 const handleSizeChange = (size) => {
   pageSize.value = size
+  currentPage.value = 1
+  updateDisplayedData()
 }
 </script>
 

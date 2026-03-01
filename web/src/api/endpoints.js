@@ -1,7 +1,7 @@
 import api from './index'
 
 export const realtimeAPI = {
-  getAll: (limit) => api.get(`/realtime?limit=${limit}`),
+  getAll: () => api.get('/realtime'),
   getBySymbol: (symbol) => api.get(`/realtime/${symbol}`),
   getTopGainers: (limit) => api.get(`/realtime/top/gainers?limit=${limit}`),
   getTopLosers: (limit) => api.get(`/realtime/top/losers?limit=${limit}`),
