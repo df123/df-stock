@@ -39,8 +39,6 @@
 
 .header-content {
   width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -68,7 +66,5 @@
 
 .el-main {
   padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
 }
 </style>
