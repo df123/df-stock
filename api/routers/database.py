@@ -1,0 +1,199 @@
+"""
+数据库查询API路由
+"""
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional
+
+from data.database import DatabaseManager
+from api.models.schemas import DatabaseStats, ApiResponse
+
+router = APIRouter(prefix="/api/db", tags=["数据库"])
+
+db_manager = None
+
+
+def init_services():
+    """初始化服务"""
+    global db_manager
+    if db_manager is None:
+        db_manager = DatabaseManager()
+
+
+@router.get("/stats", response_model=ApiResponse)
+async def get_db_stats():
+    """获取数据库统计信息"""
+    init_services()
+    
+    try:
+        stats = db_manager.get_stats()
+        
+        stats_data = DatabaseStats(**stats)
+        
+        return ApiResponse(
+            success=True,
+            message="数据库统计信息",
+            data=stats_data.model_dump()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/query/etf_realtime", response_model=ApiResponse)
+async def query_etf_realtime(
+    code: Optional[str] = Query(None, description="ETF代码"),
+    snapshot_date: Optional[str] = Query(None, description="快照日期"),
+    limit: Optional[int] = Query(100, description="返回记录数限制")
+):
+    """
+    查询实时行情数据
+    
+    - **code**: ETF代码
+    - **snapshot_date**: 快照日期(YYYY-MM-DD)
+    - **limit**: 返回记录数限制
+    """
+    init_services()
+    
+    try:
+        df = db_manager.query_etf_realtime(code, snapshot_date)
+        
+        if limit:
+            df = df.head(limit)
+        
+        data = df.to_dict('records')
+        
+        return ApiResponse(
+            success=True,
+            message=f"查询到 {len(data)} 条实时数据",
+            data=data
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/query/etf_history", response_model=ApiResponse)
+async def query_etf_history(
+    code: Optional[str] = Query(None, description="ETF代码"),
+    start_date: Optional[str] = Query(None, description="开始日期(YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="结束日期(YYYY-MM-DD)"),
+    limit: Optional[int] = Query(100, description="返回记录数限制")
+):
+    """
+    查询历史数据
+    
+    - **code**: ETF代码
+    - **start_date**: 开始日期(YYYY-MM-DD)
+    - **end_date**: 结束日期(YYYY-MM-DD)
+    - **limit**: 返回记录数限制
+    """
+    init_services()
+    
+    try:
+        df = db_manager.query_etf_history(code or '', start_date, end_date)
+        
+        if limit:
+            df = df.head(limit)
+        
+        data = df.to_dict('records')
+        
+        return ApiResponse(
+            success=True,
+            message=f"查询到 {len(data)} 条历史数据",
+            data=data
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/query/screening_results", response_model=ApiResponse)
+async def query_screening_results(
+    strategy: Optional[str] = Query(None, description="策略类型"),
+    code: Optional[str] = Query(None, description="ETF代码"),
+    screen_date: Optional[str] = Query(None, description="筛选日期(YYYY-MM-DD)"),
+    limit: Optional[int] = Query(100, description="返回记录数限制")
+):
+    """
+    查询筛选结果
+    
+    - **strategy**: 策略类型
+    - **code**: ETF代码
+    - **screen_date**: 筛选日期(YYYY-MM-DD)
+    - **limit**: 返回记录数限制
+    """
+    init_services()
+    
+    try:
+        df = db_manager.query_screening_results(strategy, code, screen_date)
+        
+        if limit:
+            df = df.head(limit)
+        
+        data = df.to_dict('records')
+        
+        return ApiResponse(
+            success=True,
+            message=f"查询到 {len(data)} 条筛选结果",
+            data=data
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/query/backtest_results", response_model=ApiResponse)
+async def query_backtest_results(
+    strategy: Optional[str] = Query(None, description="策略类型"),
+    code: Optional[str] = Query(None, description="ETF代码"),
+    limit: Optional[int] = Query(100, description="返回记录数限制")
+):
+    """
+    查询回测结果
+    
+    - **strategy**: 策略类型
+    - **code**: ETF代码
+    - **limit**: 返回记录数限制
+    """
+    init_services()
+    
+    try:
+        df = db_manager.query_backtest_results(strategy, code)
+        
+        if limit:
+            df = df.head(limit)
+        
+        data = df.to_dict('records')
+        
+        return ApiResponse(
+            success=True,
+            message=f"查询到 {len(data)} 条回测结果",
+            data=data
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/export/{table}", response_model=ApiResponse)
+async def export_table(table: str):
+    """
+    导出表数据为CSV
+    
+    - **table**: 表名 (etf_realtime, etf_history, screening_results, backtest_results)
+    """
+    init_services()
+    
+    try:
+        valid_tables = ['etf_realtime', 'etf_history', 'screening_results', 'backtest_results']
+        if table not in valid_tables:
+            return ApiResponse(
+                success=False,
+                message=f"无效的表名，必须是: {', '.join(valid_tables)}",
+                data=None
+            )
+        
+        output_path = db_manager.export_to_csv(table)
+        
+        return ApiResponse(
+            success=True,
+            message=f"数据已导出到: {output_path}",
+            data={"file_path": output_path}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

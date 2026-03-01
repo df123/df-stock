@@ -63,3 +63,13 @@ screening/*.csv
 screening/*.json
 backtest_*.json
 screening_*.csv
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+dist-ssr/
+*.local
