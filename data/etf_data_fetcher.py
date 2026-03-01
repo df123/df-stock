@@ -2,6 +2,7 @@ import akshare as ak
 import pandas as pd
 from datetime import datetime
 from typing import Optional, List
+from config import Config
 
 
 class ETFDataFetcher:
@@ -17,20 +18,26 @@ class ETFDataFetcher:
     由于其他数据源的限制，实时行情使用同花顺的基金净值数据
     """
     
-    def __init__(self):
+    def __init__(self, db_manager=None):
         self._cache = {
             'realtime': None,
             'timestamp': None
         }
+        self._db_manager = db_manager
     
-    def get_etf_list(self) -> pd.DataFrame:
+    def get_etf_list(self, save_to_db: bool = True) -> pd.DataFrame:
         """
         获取ETF列表
         数据源: 新浪财经
         """
-        return ak.fund_etf_category_sina(symbol='ETF基金')
+        df = ak.fund_etf_category_sina(symbol='ETF基金')
+        
+        if save_to_db and self._db_manager:
+            self._db_manager.save_etf_list(df)
+        
+        return df
     
-    def get_etf_realtime(self, symbol: Optional[str] = None) -> pd.DataFrame:
+    def get_etf_realtime(self, symbol: Optional[str] = None, save_to_db: bool = True) -> pd.DataFrame:
         """
         获取ETF实时净值数据
         数据源: 同花顺（基金净值数据）
@@ -63,6 +70,10 @@ class ETFDataFetcher:
                     # 过滤掉非ETF数据
                     df = df[df['基金类型'] == '股票型']
                     
+                    # 保存到数据库
+                    if save_to_db and self._db_manager:
+                        self._db_manager.save_etf_realtime(df)
+                    
                     self._cache['realtime'] = df
                     self._cache['timestamp'] = datetime.now()
             except Exception as e:
@@ -82,7 +93,8 @@ class ETFDataFetcher:
         start_date: str,
         end_date: Optional[str] = None,
         period: str = 'daily',
-        adjust: str = ''
+        adjust: str = '',
+        save_to_db: bool = True
     ) -> pd.DataFrame:
         """
         获取ETF历史行情
@@ -129,6 +141,10 @@ class ETFDataFetcher:
                     
                     df = df[(df['日期'] >= start_dt) & (df['日期'] <= end_dt)]
                     df['日期'] = df['日期'].dt.strftime('%Y-%m-%d')
+                
+                # 保存到数据库
+                if save_to_db and self._db_manager:
+                    self._db_manager.save_etf_history(symbol, df)
             
             return df
         except Exception as e:

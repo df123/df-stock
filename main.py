@@ -10,6 +10,7 @@ import pandas as pd
 from datetime import datetime
 
 from data.etf_data_fetcher import ETFDataFetcher
+from data.database import DatabaseManager
 from indicators.technical_indicators import TechnicalIndicators
 from backtest.backtest_engine import BacktestEngine
 from screening.stock_screener import ETFScreener
@@ -17,11 +18,13 @@ from strategies.macd_strategy import run_macd_strategy
 from strategies.bollinger_strategy import run_bb_strategy
 from strategies.combined_strategy import run_combined_strategy
 from utils.helpers import VisualizationUtils, DateUtils
+from config import Config
 
 
 def handle_realtime(args):
     """实时行情查询"""
-    fetcher = ETFDataFetcher()
+    db_manager = DatabaseManager() if Config.DB_ENABLED else None
+    fetcher = ETFDataFetcher(db_manager=db_manager)
     
     if args.symbol:
         print(f"\n=== ETF {args.symbol} 实时行情 ===")
@@ -52,7 +55,8 @@ def handle_realtime(args):
 
 def handle_history(args):
     """历史数据查询"""
-    fetcher = ETFDataFetcher()
+    db_manager = DatabaseManager() if Config.DB_ENABLED else None
+    fetcher = ETFDataFetcher(db_manager=db_manager)
     
     if not args.symbol:
         print("错误: 请指定ETF代码")
@@ -82,7 +86,8 @@ def handle_history(args):
 
 def handle_indicators(args):
     """技术指标分析"""
-    fetcher = ETFDataFetcher()
+    db_manager = DatabaseManager() if Config.DB_ENABLED else None
+    fetcher = ETFDataFetcher(db_manager=db_manager)
     
     if not args.symbol:
         print("错误: 请指定ETF代码")
@@ -118,6 +123,7 @@ def handle_indicators(args):
 
 def handle_screen(args):
     """ETF筛选"""
+    db_manager = DatabaseManager() if Config.DB_ENABLED else None
     screener = ETFScreener(min_days=args.min_days)
     
     print(f"\n=== ETF筛选 ({args.strategy}) ===")
@@ -157,6 +163,10 @@ def handle_screen(args):
         filename = f"screening_{args.strategy}_{datetime.now().strftime('%Y%m%d')}.csv"
         results.to_csv(filename, index=False, encoding='utf-8-sig')
         print(f"\n筛选结果已保存到: {filename}")
+        
+        if db_manager:
+            db_manager.save_screening_results(args.strategy, results, args.lookback)
+            print(f"筛选结果已保存到数据库")
 
 
 def handle_backtest(args):
@@ -165,7 +175,8 @@ def handle_backtest(args):
         print("错误: 请指定ETF代码")
         return
     
-    fetcher = ETFDataFetcher()
+    db_manager = DatabaseManager() if Config.DB_ENABLED else None
+    fetcher = ETFDataFetcher(db_manager=db_manager)
     df = fetcher.get_etf_history(args.symbol, args.start, args.end)
     
     engine = BacktestEngine(
@@ -213,6 +224,57 @@ def handle_backtest(args):
         print(f"\n回测结果已保存到: {filename}")
 
 
+def handle_db_query(args):
+    """数据库查询"""
+    db_manager = DatabaseManager()
+    
+    print("\n=== 数据库统计信息 ===")
+    stats = db_manager.get_stats()
+    for key, value in stats.items():
+        print(f"  {key}: {value}")
+    
+    if args.table:
+        print(f"\n=== 查询表: {args.table} ===")
+        filters = {}
+        if args.symbol:
+            filters['code'] = args.symbol
+        if args.date:
+            if args.table == 'screening_results':
+                filters['screen_date'] = args.date
+            elif args.table == 'etf_realtime':
+                filters['snapshot_date'] = args.date
+            else:
+                print("警告: date参数不适用于此表")
+        
+        try:
+            if args.table == 'etf_history':
+                df = db_manager.query_etf_history(args.symbol or '', 
+                                                   args.start_date, args.end_date)
+            elif args.table == 'etf_realtime':
+                df = db_manager.query_etf_realtime(args.symbol, args.date)
+            elif args.table == 'screening_results':
+                df = db_manager.query_screening_results(args.strategy, 
+                                                        args.symbol, args.date)
+            elif args.table == 'backtest_results':
+                df = db_manager.query_backtest_results(args.strategy, args.symbol)
+            else:
+                df = db_manager.export_to_csv(args.table, '/dev/null', filters)
+                df = db_manager.query_etf_history('', filters.get('date', ''), filters.get('date', ''))
+            
+            if not df.empty:
+                print(f"找到 {len(df)} 条记录")
+                print(df.head(args.rows).to_string())
+                
+                if args.export_csv:
+                    filename = f"{args.table}_query_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                    df.to_csv(filename, index=False, encoding='utf-8-sig')
+                    print(f"\n查询结果已导出到: {filename}")
+            else:
+                print("未找到符合条件的记录")
+        except Exception as e:
+            print(f"查询失败: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='ETF量化分析系统 - 使用AKShare获取ETF数据，实现MACD+布林带等技术指标分析',
@@ -225,12 +287,13 @@ def main():
   python main.py --action screen --strategy macd                # MACD策略筛选
   python main.py --action backtest --strategy macd --symbol 510300  # MACD策略回测
   python main.py --action backtest --strategy compare --symbol 510300  # 策略对比回测
+  python main.py --action db-query --table etf_realtime      # 查询数据库
         """
     )
     
     parser.add_argument('--action', type=str, required=True,
-                       choices=['realtime', 'history', 'indicators', 'screen', 'backtest'],
-                       help='操作类型: realtime(实时), history(历史), indicators(指标), screen(筛选), backtest(回测)')
+                       choices=['realtime', 'history', 'indicators', 'screen', 'backtest', 'db-query'],
+                       help='操作类型: realtime(实时), history(历史), indicators(指标), screen(筛选), backtest(回测), db-query(数据库查询)')
     
     parser.add_argument('--symbol', type=str, help='ETF代码，例如: 510300')
     parser.add_argument('--start', type=str, help='开始日期 (格式: YYYYMMDD)')
@@ -255,6 +318,12 @@ def main():
     parser.add_argument('--initial-cash', type=float, default=100000, help='回测初始资金')
     parser.add_argument('--commission', type=float, default=0.0003, help='手续费率')
     
+    parser.add_argument('--table', type=str, help='数据库表名 (db-query用): etf_history, etf_realtime, screening_results, backtest_results')
+    parser.add_argument('--export-csv', action='store_true', help='导出查询结果到CSV (db-query用)')
+    parser.add_argument('--date', type=str, help='指定日期 (db-query用, 格式: YYYY-MM-DD)')
+    parser.add_argument('--start-date', type=str, help='开始日期 (db-query用, 格式: YYYY-MM-DD)')
+    parser.add_argument('--end-date', type=str, help='结束日期 (db-query用, 格式: YYYY-MM-DD)')
+    
     args = parser.parse_args()
     
     try:
@@ -268,6 +337,8 @@ def main():
             handle_screen(args)
         elif args.action == 'backtest':
             handle_backtest(args)
+        elif args.action == 'db-query':
+            handle_db_query(args)
     except Exception as e:
         print(f"错误: {e}")
         import traceback

@@ -1,6 +1,7 @@
 """
 配置文件
 """
+import os
 
 class Config:
     AKSHARE_DATA_SOURCE = 'em'
@@ -25,3 +26,6 @@ class Config:
     PLOT_DPI = 100
     
     BACKTEST_ANNUAL_TRADING_DAYS = 252
+    
+    DB_PATH = os.path.join(os.path.dirname(__file__), 'data', 'etf_data.db')
+    DB_ENABLED = True
