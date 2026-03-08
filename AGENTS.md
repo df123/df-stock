@@ -235,3 +235,11 @@ main.py               # CLI入口点
   - `logs/web.log` - 前端开发服务日志
 - ✅ 启动脚本应配置日志输出到 `logs/` 目录
 - ✅ 避免在根目录创建 `.log` 文件
+
+**脚本文件管理规范：**
+- ✅ Shell脚本统一存放：`scripts/` 文件夹
+  - `scripts/install.sh` - 环境依赖安装脚本
+  - `scripts/start_api.sh` - 后端API服务启动脚本
+  - `scripts/start_web.sh` - Web服务启动指南脚本
+- ✅ 所有 `.sh` 文件应添加可执行权限：`chmod +x scripts/*.sh`
+- ✅ 启动服务时从scripts目录执行：`./scripts/start_api.sh`
