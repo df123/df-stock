@@ -22,24 +22,24 @@
           </el-select>
         </el-form-item>
         <el-form-item label="开始日期">
-          <el-input v-model="queryParams.startDate" placeholder="20240101" style="width: 120px" />
+          <el-input v-model="queryParams.startDate" placeholder="不填则从最开始" style="width: 140px" />
         </el-form-item>
         <el-form-item label="结束日期">
-          <el-input v-model="queryParams.endDate" placeholder="20240226" style="width: 120px" />
+          <el-input v-model="queryParams.endDate" placeholder="不填则至最新" style="width: 140px" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="loadData" :loading="loading">查询</el-button>
         </el-form-item>
       </el-form>
       
-      <el-table :data="historyData" style="width: 100%" v-loading="loading">
+      <el-table :data="displayData" style="width: 100%" v-loading="loading" table-layout="auto">
         <el-table-column prop="date" label="日期" width="120" />
         <el-table-column prop="open" label="开盘" width="100" />
         <el-table-column prop="high" label="最高" width="100" />
         <el-table-column prop="low" label="最低" width="100" />
         <el-table-column prop="close" label="收盘" width="100" />
-        <el-table-column prop="volume" label="成交量" width="150" />
-        <el-table-column prop="amount" label="成交额" width="150" />
+        <el-table-column prop="volume" label="成交量" min-width="150" />
+        <el-table-column prop="amount" label="成交额" min-width="150" />
       </el-table>
       
       <el-pagination
@@ -47,31 +47,39 @@
         v-model:page-size="pageSize"
         :total="total"
         layout="total, sizes, prev, pager, next"
-        :page-sizes="[10, 20, 50, 100]"
+        :page-sizes="[10, 13, 20, 50, 100]"
         style="margin-top: 20px; justify-content: flex-end"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
       />
     </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { historyAPI } from '@/api/endpoints'
 import { realtimeAPI } from '@/api/endpoints'
 import { databaseAPI } from '@/api/endpoints'
 
 const queryParams = ref({
   symbol: '510300',
-  startDate: '20240101',
-  endDate: '20240226'
+  startDate: '',
+  endDate: ''
 })
 
 const historyData = ref([])
 const etfCodes = ref([])
 const loading = ref(false)
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(13)
 const total = ref(0)
+
+const displayData = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return historyData.value.slice(start, end)
+})
 
 onMounted(() => {
   loadEtfcodes()
@@ -79,7 +87,7 @@ onMounted(() => {
 
 const loadEtfcodes = async () => {
   try {
-    const response = await databaseAPI.queryRealtime({})
+    const response = await databaseAPI.getETFList({})
     if (response.success) {
       const codes = response.data.map(item => ({
         code: item.code,
@@ -103,12 +111,22 @@ const loadData = async () => {
     if (response.success) {
       historyData.value = response.data
       total.value = response.data.length
+      currentPage.value = 1
     }
   } catch (error) {
     console.error('加载历史数据失败:', error)
   } finally {
     loading.value = false
   }
+}
+
+const handleSizeChange = (val) => {
+  pageSize.value = val
+  currentPage.value = 1
+}
+
+const handleCurrentChange = (val) => {
+  currentPage.value = val
 }
 </script>
 
@@ -117,5 +135,13 @@ const loadData = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.el-table {
+  width: 100%;
+}
+
+.el-table .el-table__body-wrapper {
+  width: 100%;
 }
 </style>

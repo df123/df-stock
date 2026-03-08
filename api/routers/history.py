@@ -27,15 +27,15 @@ def init_services():
 @router.get("/{symbol}", response_model=ApiResponse)
 async def get_history(
     symbol: str,
-    start_date: str = Query(..., description="开始日期(YYYYMMDD)"),
-    end_date: Optional[str] = Query(None, description="结束日期(YYYYMMDD)")
+    start_date: Optional[str] = Query(None, description="开始日期(YYYYMMDD)，不指定则返回全部历史数据"),
+    end_date: Optional[str] = Query(None, description="结束日期(YYYYMMDD)，不指定则返回至最新")
 ):
     """
     获取指定ETF的历史数据
     
     - **symbol**: ETF代码
-    - **start_date**: 开始日期(YYYYMMDD)
-    - **end_date**: 结束日期(YYYYMMDD)
+    - **start_date**: 开始日期(YYYYMMDD)，不指定则返回全部历史数据
+    - **end_date**: 结束日期(YYYYMMDD)，不指定则返回至最新
     """
     init_services()
     

@@ -38,6 +38,40 @@ async def get_db_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/etf_list", response_model=ApiResponse)
+async def get_etf_list(
+    code: Optional[str] = Query(None, description="ETF代码"),
+    fund_type: Optional[str] = Query(None, description="基金类型")
+):
+    """
+    获取可交易ETF列表
+    返回当前正在交易的ETF代码和名称
+    
+    - **code**: 筛选特定ETF代码
+    - **fund_type**: 筛选特定基金类型
+    """
+    init_services()
+    
+    try:
+        df = db_manager.query_etf_list(code, fund_type)
+        
+        data = []
+        for _, row in df.iterrows():
+            data.append({
+                'code': str(row.get('code', '')),
+                'name': str(row.get('name', '')),
+                'fund_type': str(row.get('fund_type', ''))
+            })
+        
+        return ApiResponse(
+            success=True,
+            message=f"获取到 {len(data)} 个可交易ETF",
+            data=data
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/query/etf_realtime", response_model=ApiResponse)
 async def query_etf_realtime(
     code: Optional[str] = Query(None, description="ETF代码"),

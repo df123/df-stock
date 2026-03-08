@@ -12,6 +12,7 @@ from .models import (
     ETFListModel, ETFRealtimeModel, ETFHistoryModel,
     ScreeningResultsModel, BacktestResultsModel
 )
+from config import Config
 
 
 class DatabaseManager:
@@ -19,7 +20,7 @@ class DatabaseManager:
     
     def __init__(self, db_path: str = None):
         if db_path is None:
-            db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'etf_data.db')
+            db_path = Config.DB_PATH
         
         self.db_path = db_path
         self._ensure_db_dir()
@@ -72,6 +73,27 @@ class DatabaseManager:
             ETFListModel.get_columns(),
             records
         )
+    
+    def query_etf_list(self, code: str = None, fund_type: str = None) -> pd.DataFrame:
+        """
+        查询ETF列表
+        """
+        query = "SELECT code, name, fund_type FROM etf_list WHERE 1=1"
+        params = []
+        
+        if code:
+            query += " AND code = ?"
+            params.append(code)
+        
+        if fund_type:
+            query += " AND fund_type = ?"
+            params.append(fund_type)
+        
+        query += " ORDER BY code"
+        
+        with self._get_connection() as conn:
+            df = pd.read_sql_query(query, conn, params=params)
+            return df
     
     def save_etf_realtime(self, df: pd.DataFrame, snapshot_date: str = None) -> int:
         """

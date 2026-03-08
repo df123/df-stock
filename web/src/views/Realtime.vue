@@ -41,7 +41,7 @@
         @current-change="handlePageChange"
         @size-change="handleSizeChange"
         layout="total, sizes, prev, pager, next"
-        :page-sizes="[20, 50, 100]"
+        :page-sizes="[10, 13, 20, 50, 100]"
         style="margin-top: 20px; justify-content: flex-end"
       />
     </el-card>
@@ -56,7 +56,7 @@ const realtimeData = ref([])
 const loading = ref(false)
 const searchKeyword = ref('')
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(13)
 const total = ref(0)
 
 onMounted(() => {

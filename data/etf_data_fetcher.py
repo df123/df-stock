@@ -90,7 +90,7 @@ class ETFDataFetcher:
     def get_etf_history(
         self,
         symbol: str,
-        start_date: str,
+        start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         period: str = 'daily',
         adjust: str = '',
@@ -100,9 +100,6 @@ class ETFDataFetcher:
         获取ETF历史行情
         数据源: 新浪财经
         """
-        if end_date is None:
-            end_date = datetime.now().strftime('%Y%m%d')
-        
         # 新浪财经需要完整代码格式（如 sh510300）
         full_symbol = symbol
         if not symbol.startswith(('sh', 'sz', 'SH', 'SZ')):
@@ -131,15 +128,19 @@ class ETFDataFetcher:
             if not df.empty:
                 df = df.rename(columns=column_mapping)
                 
-                # 过滤日期范围
+                # 根据参数过滤日期范围
                 if '日期' in df.columns:
                     df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
                     df = df.dropna(subset=['日期'])
                     
-                    start_dt = pd.to_datetime(start_date, format='%Y%m%d')
-                    end_dt = pd.to_datetime(end_date, format='%Y%m%d')
+                    if start_date or end_date:
+                        if start_date:
+                            start_dt = pd.to_datetime(start_date, format='%Y%m%d')
+                            df = df[df['日期'] >= start_dt]
+                        if end_date:
+                            end_dt = pd.to_datetime(end_date, format='%Y%m%d')
+                            df = df[df['日期'] <= end_dt]
                     
-                    df = df[(df['日期'] >= start_dt) & (df['日期'] <= end_dt)]
                     df['日期'] = df['日期'].dt.strftime('%Y-%m-%d')
                 
                 # 保存到数据库

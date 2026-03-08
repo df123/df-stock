@@ -192,11 +192,11 @@ def handle_backtest(args):
     print("-" * 50)
     
     if args.strategy == 'macd':
-        results, cerebro = engine.run_macd_backtest(df, strategy_type='macd_type')
+        results, cerebro = engine.run_macd_backtest(df, strategy_type='basic')
     elif args.strategy == 'bb':
-        results, cerebro = engine.run_bb_backtest(df, strategy_type='bb_type')
+        results, cerebro = engine.run_bb_backtest(df, strategy_type='breakthrough')
     elif args.strategy == 'combined':
-        results, cerebro = engine.run_combined_backtest(df, strategy_type='combined_type')
+        results, cerebro = engine.run_combined_backtest(df, strategy_type='standard')
     elif args.strategy == 'compare':
         comparison = engine.compare_strategies(df)
         print("\n=== 策略对比 ===")
@@ -275,6 +275,39 @@ def handle_db_query(args):
             print(f"查询失败: {e}")
 
 
+def handle_update_etf_list(args):
+    """更新ETF列表"""
+    db_manager = DatabaseManager()
+    fetcher = ETFDataFetcher(db_manager=db_manager)
+    
+    print("\n=== 更新ETF列表 ===")
+    
+    try:
+        df = fetcher.get_etf_list()
+        
+        if df.empty:
+            print("错误: 未能获取ETF列表")
+            return
+        
+        count = db_manager.save_etf_list(df)
+        
+        print(f"成功保存 {count} 个ETF到数据库")
+        
+        print("\nETF列表预览:")
+        preview_cols = ['代码', '名称', '基金类型']
+        available_cols = [col for col in preview_cols if col in df.columns]
+        print(df[available_cols].head(10).to_string(index=False))
+        
+        if args.save:
+            filename = os.path.join('data', f"etf_list_{datetime.now().strftime('%Y%m%d')}.csv")
+            df[available_cols].to_csv(filename, index=False, encoding='utf-8-sig')
+            print(f"\nETF列表已保存到: {filename}")
+    except Exception as e:
+        print(f"更新ETF列表失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='ETF量化分析系统 - 使用AKShare获取ETF数据，实现MACD+布林带等技术指标分析',
@@ -288,12 +321,13 @@ def main():
   python main.py --action backtest --strategy macd --symbol 510300  # MACD策略回测
   python main.py --action backtest --strategy compare --symbol 510300  # 策略对比回测
   python main.py --action db-query --table etf_realtime      # 查询数据库
+  python main.py --action update-etf-list                    # 更新可交易ETF列表
         """
     )
     
     parser.add_argument('--action', type=str, required=True,
-                       choices=['realtime', 'history', 'indicators', 'screen', 'backtest', 'db-query'],
-                       help='操作类型: realtime(实时), history(历史), indicators(指标), screen(筛选), backtest(回测), db-query(数据库查询)')
+                       choices=['realtime', 'history', 'indicators', 'screen', 'backtest', 'db-query', 'update-etf-list'],
+                       help='操作类型: realtime(实时), history(历史), indicators(指标), screen(筛选), backtest(回测), db-query(数据库查询), update-etf-list(更新ETF列表)')
     
     parser.add_argument('--symbol', type=str, help='ETF代码，例如: 510300')
     parser.add_argument('--start', type=str, help='开始日期 (格式: YYYYMMDD)')
@@ -339,6 +373,8 @@ def main():
             handle_backtest(args)
         elif args.action == 'db-query':
             handle_db_query(args)
+        elif args.action == 'update-etf-list':
+            handle_update_etf_list(args)
     except Exception as e:
         print(f"错误: {e}")
         import traceback
