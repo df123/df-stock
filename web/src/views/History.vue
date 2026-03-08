@@ -9,7 +9,17 @@
       
       <el-form :inline="true" :model="queryParams">
         <el-form-item label="ETF代码">
-          <el-input v-model="queryParams.symbol" placeholder="例如: 510300" style="width: 150px" />
+          <el-select v-model="queryParams.symbol" placeholder="请选择ETF代码" style="width: 150px" filterable>
+            <el-option
+              v-for="item in etfCodes"
+              :key="item.code"
+              :label="item.code"
+              :value="item.code"
+            >
+              <span>{{ item.code }}</span>
+              <span style="float: right; color: #8492a6; font-size: 13px">{{ item.name }}</span>
+            </el-option>
+          </el-select>
         </el-form-item>
         <el-form-item label="开始日期">
           <el-input v-model="queryParams.startDate" placeholder="20240101" style="width: 120px" />
@@ -45,8 +55,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { historyAPI } from '@/api/endpoints'
+import { realtimeAPI } from '@/api/endpoints'
+import { databaseAPI } from '@/api/endpoints'
 
 const queryParams = ref({
   symbol: '510300',
@@ -55,10 +67,30 @@ const queryParams = ref({
 })
 
 const historyData = ref([])
+const etfCodes = ref([])
 const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+
+onMounted(() => {
+  loadEtfcodes()
+})
+
+const loadEtfcodes = async () => {
+  try {
+    const response = await databaseAPI.queryRealtime({})
+    if (response.success) {
+      const codes = response.data.map(item => ({
+        code: item.code,
+        name: item.name
+      }))
+      etfCodes.value = codes
+    }
+  } catch (error) {
+    console.error('加载ETF代码失败:', error)
+  }
+}
 
 const loadData = async () => {
   loading.value = true
