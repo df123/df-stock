@@ -216,7 +216,7 @@ main.py               # CLI入口点
 
 - 后端需要设置 `PYTHONPATH=/home/df/df-stock` 用于模块导入
 - 前端代理配置到 `/api` 用于后端通信
-- 数据库使用SQLite，位于 `data/etf_data.db`
+- 数据库使用SQLite，位于 `db/etf_data.db`
 - 数据源：新浪财经（ETF列表、历史数据），同花顺（实时净值）
 - 禁止使用东方财富（东财）数据源
 - 部署更改前总是使用 `python test_system.py` 测试
@@ -243,3 +243,11 @@ main.py               # CLI入口点
   - `scripts/start_web.sh` - Web服务启动指南脚本
 - ✅ 所有 `.sh` 文件应添加可执行权限：`chmod +x scripts/*.sh`
 - ✅ 启动服务时从scripts目录执行：`./scripts/start_api.sh`
+
+**数据库文件管理规范：**
+- ✅ 数据库文件统一存放：`db/` 文件夹
+  - `db/etf_data.db` - SQLite数据库文件
+- ✅ 数据库路径配置在 `config.py` 中：`DB_PATH`
+- ✅ 使用 `.gitkeep` 保持目录结构追踪
+- ✅ 所有 `.db` 文件已在 `.gitignore` 中忽略，不提交实际数据库文件
+

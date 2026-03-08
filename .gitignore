@@ -49,6 +49,10 @@ ENV/
 *.jpeg
 *.pdf
 
+# Database
+*.db
+!db/.gitkeep
+
 # Logs
 *.log
 

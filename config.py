@@ -27,5 +27,5 @@ class Config:
     
     BACKTEST_ANNUAL_TRADING_DAYS = 252
     
-    DB_PATH = os.path.join(os.path.dirname(__file__), 'data', 'etf_data.db')
+    DB_PATH = os.path.join(os.path.dirname(__file__), 'db', 'etf_data.db')
     DB_ENABLED = True
