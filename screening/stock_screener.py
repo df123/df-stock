@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 from data.etf_data_fetcher import ETFDataFetcher
 from data.database.db_manager import DatabaseManager
 from indicators.technical_indicators import TechnicalIndicators
+import sqlite3
 
 
 class ETFScreener:
@@ -12,6 +13,28 @@ class ETFScreener:
         self.db_manager = DatabaseManager()
         self.min_days = min_days
     
+    def _get_all_codes(self, limit: int = 1000) -> List[str]:
+        """获取所有ETF代码，去重处理带前缀和不带前缀的重复代码"""
+        conn = sqlite3.connect(self.db_manager.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT code FROM etf_history ORDER BY code")
+        all_codes = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        
+        seen = set()
+        unique_codes = []
+        
+        for code in all_codes:
+            normalized = code
+            if code.startswith('sh') or code.startswith('sz'):
+                normalized = code[2:]
+            
+            if normalized not in seen:
+                seen.add(normalized)
+                unique_codes.append(code)
+        
+        return unique_codes[:limit]
+    
     def screen_by_macd(
         self,
         end_date: Optional[str] = None,
@@ -20,25 +43,20 @@ class ETFScreener:
         include_death_cross: bool = False
     ) -> pd.DataFrame:
         from datetime import datetime, timedelta
-        import sqlite3
         
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
         else:
             end_date = pd.to_datetime(end_date).strftime('%Y-%m-%d')
         
-        start_date = (datetime.now() - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
+        start_date = (pd.to_datetime(end_date) - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
         
         etf_list_df = self.db_manager.query_etf_list()
         
         if etf_list_df.empty:
             return pd.DataFrame()
         
-        conn = sqlite3.connect(self.db_manager.db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT code FROM etf_history ORDER BY code LIMIT 50")
-        codes = [row[0] for row in cursor.fetchall()]
-        conn.close()
+        codes = self._get_all_codes(1000)
         
         print(f"[DEBUG] screen_by_macd: {len(codes)} codes to process")
         
@@ -111,25 +129,20 @@ class ETFScreener:
         include_squeeze: bool = False
     ) -> pd.DataFrame:
         from datetime import datetime, timedelta
-        import sqlite3
         
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
         else:
             end_date = pd.to_datetime(end_date).strftime('%Y-%m-%d')
         
-        start_date = (datetime.now() - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
+        start_date = (pd.to_datetime(end_date) - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
         
         etf_list_df = self.db_manager.query_etf_list()
         
         if etf_list_df.empty:
             return pd.DataFrame()
         
-        conn = sqlite3.connect(self.db_manager.db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT code FROM etf_history ORDER BY code LIMIT 50")
-        codes = [row[0] for row in cursor.fetchall()]
-        conn.close()
+        codes = self._get_all_codes(1000)
         
         print(f"[DEBUG] screen_by_bollinger: {len(codes)} codes to process")
         
@@ -221,25 +234,20 @@ class ETFScreener:
         require_bb_above_middle: bool = True
     ) -> pd.DataFrame:
         from datetime import datetime, timedelta
-        import sqlite3
         
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
         else:
             end_date = pd.to_datetime(end_date).strftime('%Y-%m-%d')
         
-        start_date = (datetime.now() - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
+        start_date = (pd.to_datetime(end_date) - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
         
         etf_list_df = self.db_manager.query_etf_list()
         
         if etf_list_df.empty:
             return pd.DataFrame()
         
-        conn = sqlite3.connect(self.db_manager.db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT code FROM etf_history ORDER BY code LIMIT 50")
-        codes = [row[0] for row in cursor.fetchall()]
-        conn.close()
+        codes = self._get_all_codes(1000)
         
         print(f"[DEBUG] screen_by_combined: {len(codes)} codes to process")
         print(f"[DEBUG] screen_by_combined: start_date={start_date}, end_date={end_date}")
@@ -310,24 +318,24 @@ class ETFScreener:
     def screen_by_volume(
         self,
         min_volume_ratio: float = 2.0,
-        lookback_days: int = 20
+        lookback_days: int = 20,
+        end_date: Optional[str] = None
     ) -> pd.DataFrame:
         from datetime import datetime, timedelta
-        import sqlite3
         
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        start_date = (datetime.now() - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
+        if end_date is None:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        else:
+            end_date = pd.to_datetime(end_date).strftime('%Y-%m-%d')
+        
+        start_date = (pd.to_datetime(end_date) - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
         
         etf_list_df = self.db_manager.query_etf_list()
         
         if etf_list_df.empty:
             return pd.DataFrame()
         
-        conn = sqlite3.connect(self.db_manager.db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT code FROM etf_history ORDER BY code LIMIT 50")
-        codes = [row[0] for row in cursor.fetchall()]
-        conn.close()
+        codes = self._get_all_codes(1000)
         
         print(f"[DEBUG] screen_by_volume: {len(codes)} codes to process")
         

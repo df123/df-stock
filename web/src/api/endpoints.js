@@ -35,7 +35,9 @@ export const databaseAPI = {
   queryHistory: (params) => api.get('/db/query/etf_history', { params }),
   queryScreening: (params) => api.get('/db/query/screening_results', { params }),
   queryBacktest: (params) => api.get('/db/query/backtest_results', { params }),
-  export: (table) => api.get(`/db/export/${table}`)
+  export: (table) => api.get(`/db/export/${table}`),
+  incrementalUpdate: (params) => api.post('/db/update/incremental', null, { params }),
+  getUpdateStatus: () => api.get('/db/update/status')
 }
 
 export const screeningAPI = {

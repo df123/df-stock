@@ -58,6 +58,25 @@ python test_system.py
 python test_system.py
 ```
 
+### 数据更新
+```bash
+# 增量更新所有ETF数据（仅更新新数据）
+python scripts/incremental_update.py
+
+# 增量更新指定ETF
+python scripts/incremental_update.py --codes 510300 510500
+
+# 使用Shell脚本更新
+./scripts/incremental_update.sh
+./scripts/incremental_update.sh 510300 510500
+
+# 获取所有ETF历史数据
+python scripts/fetch_all_etf.py
+
+# 使用Shell脚本获取所有ETF
+./scripts/fetch_all_etf.sh
+```
+
 ## 代码风格指南
 
 ### Python

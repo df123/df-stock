@@ -23,7 +23,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="筛选日期">
-          <el-input v-model="queryParams.endDate" placeholder="YYYYMMDD，不填则今天" style="width: 150px" />
+          <el-date-picker v-model="queryParams.endDate" type="date" placeholder="不填则今天" format="YYYY-MM-DD" value-format="YYYYMMDD" style="width: 150px" />
         </el-form-item>
         <el-form-item label="回溯天数">
           <el-input-number v-model="queryParams.lookbackDays" :min="20" :max="365" style="width: 120px" />
@@ -43,16 +43,16 @@
         <el-table-column prop="code" label="代码" width="100" />
         <el-table-column prop="name" label="名称" min-width="200" />
         <el-table-column prop="signal_type" label="信号类型" width="150" />
-        <el-table-column prop="close" label="最新价" width="100" />
+        <el-table-column prop="close" label="最新价" width="100" :formatter="formatNumber3" />
         <el-table-column prop="date" label="日期" width="120" />
-        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'macd'" prop="macd_fast" label="MACD快线" width="100" />
-        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'macd'" prop="macd_signal" label="MACD信号线" width="110" />
-        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'bollinger'" prop="bb_upper" label="布林带上轨" width="100" />
-        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'bollinger'" prop="bb_middle" label="布林带中轨" width="100" />
-        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'bollinger'" prop="bb_lower" label="布林带下轨" width="100" />
+        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'macd'" prop="macd_fast" label="MACD快线" width="100" :formatter="formatNumber3" />
+        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'macd'" prop="macd_signal" label="MACD信号线" width="110" :formatter="formatNumber3" />
+        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'bollinger'" prop="bb_upper" label="布林带上轨" width="100" :formatter="formatNumber3" />
+        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'bollinger'" prop="bb_middle" label="布林带中轨" width="100" :formatter="formatNumber3" />
+        <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'bollinger'" prop="bb_lower" label="布林带下轨" width="100" :formatter="formatNumber3" />
         <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'bollinger'" prop="bb_position" label="布林带位置" width="110">
           <template #default="{ row }">
-            {{ (row.bb_position * 100).toFixed(1) }}%
+            {{ (row.bb_position * 100).toFixed(3) }}%
           </template>
         </el-table-column>
       </el-table>
@@ -159,6 +159,13 @@ const handleSizeChange = (val) => {
 
 const handleCurrentChange = (val) => {
   currentPage.value = val
+}
+
+const formatNumber3 = (row, column, cellValue) => {
+  if (cellValue === null || cellValue === undefined || cellValue === '') {
+    return '-'
+  }
+  return Number(cellValue).toFixed(3)
 }
 
 onMounted(() => {

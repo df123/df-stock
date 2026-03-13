@@ -55,6 +55,7 @@ ENV/
 
 # Logs
 *.log
+*.pid
 
 # OS
 .DS_Store

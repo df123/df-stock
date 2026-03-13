@@ -4,9 +4,21 @@
       <template #header>
         <div class="card-header">
           <span>数据库管理</span>
-          <el-button type="primary" @click="loadStats" :loading="loading">刷新</el-button>
+          <div>
+            <el-button type="success" @click="startIncrementalUpdate" :loading="updateRunning" :disabled="updateRunning">
+              {{ updateRunning ? '更新中...' : '增量更新' }}
+            </el-button>
+            <el-button type="primary" @click="loadStats" :loading="loading">刷新</el-button>
+          </div>
         </div>
       </template>
+      
+      <el-alert v-if="updateStatus.message" :title="updateStatus.message" :type="updateStatus.running ? 'info' : 'success'" :closable="false" style="margin-bottom: 20px">
+        <el-progress v-if="updateStatus.running" :percentage="updateStatus.progress || 0" :status="getProgressStatus()" />
+        <div v-if="updateStatus.current && updateStatus.total" style="margin-top: 8px; font-size: 12px; color: #666">
+          进度: {{ updateStatus.current }} / {{ updateStatus.total }}
+        </div>
+      </el-alert>
       
       <el-row :gutter="20">
         <el-col :span="6">
@@ -60,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { databaseAPI } from '@/api/endpoints'
 
 const activeTab = ref('stats')
@@ -68,11 +80,19 @@ const stats = ref({})
 const realtimeData = ref([])
 const historyData = ref([])
 const loading = ref(false)
+const updateRunning = ref(false)
+const updateStatus = ref({ running: false, message: '', progress: 0, current: 0, total: 0 })
+let updateStatusInterval = null
 
 onMounted(() => {
   loadStats()
   loadRealtimeData()
   loadHistoryData()
+  startStatusPolling()
+})
+
+onUnmounted(() => {
+  stopStatusPolling()
 })
 
 const loadStats = async () => {
@@ -110,6 +130,50 @@ const loadHistoryData = async () => {
     console.error('加载历史数据失败:', error)
   }
 }
+
+const startIncrementalUpdate = async () => {
+  try {
+    const response = await databaseAPI.incrementalUpdate()
+    if (response.success) {
+      updateRunning.value = true
+      updateStatus.value = response.data
+    }
+  } catch (error) {
+    console.error('启动增量更新失败:', error)
+  }
+}
+
+const getProgressStatus = () => {
+  if (updateStatus.value.progress >= 100) {
+    return 'success'
+  }
+  return undefined
+}
+
+const startStatusPolling = () => {
+  updateStatusInterval = setInterval(async () => {
+    try {
+      const response = await databaseAPI.getUpdateStatus()
+      if (response.success) {
+        updateStatus.value = response.data
+        updateRunning.value = response.data.running
+        
+        if (!response.data.running && response.data.message.includes('完成')) {
+          await loadStats()
+        }
+      }
+    } catch (error) {
+      console.error('获取更新状态失败:', error)
+    }
+  }, 2000)
+}
+
+const stopStatusPolling = () => {
+  if (updateStatusInterval) {
+    clearInterval(updateStatusInterval)
+    updateStatusInterval = null
+  }
+}
 </script>
 
 <style scoped>
@@ -117,5 +181,9 @@ const loadHistoryData = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.card-header .el-button {
+  margin-left: 10px;
 }
 </style>

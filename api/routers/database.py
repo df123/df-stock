@@ -1,8 +1,8 @@
 """
 数据库查询API路由
 """
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from typing import Optional, List
 
 from data.database import DatabaseManager
 from api.models.schemas import DatabaseStats, ApiResponse
@@ -10,6 +10,11 @@ from api.models.schemas import DatabaseStats, ApiResponse
 router = APIRouter(prefix="/api/db", tags=["数据库"])
 
 db_manager = None
+update_task_status = {
+    'running': False,
+    'message': '',
+    'progress': 0
+}
 
 
 def init_services():
@@ -231,3 +236,93 @@ async def export_table(table: str):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def run_incremental_update(codes: Optional[List[str]] = None):
+    """后台运行增量更新任务"""
+    import sys
+    import os
+    
+    sys.path.insert(0, '/home/df/df-stock')
+    
+    from scripts.incremental_update import IncrementalUpdater
+    
+    global update_task_status
+    
+    def progress_callback(progress, message, current=None, total=None):
+        """进度回调函数"""
+        update_task_status['progress'] = progress
+        update_task_status['message'] = message
+        if current is not None and total is not None:
+            update_task_status['current'] = current
+            update_task_status['total'] = total
+    
+    try:
+        update_task_status['running'] = True
+        update_task_status['message'] = '正在启动增量更新...'
+        update_task_status['progress'] = 0
+        update_task_status['current'] = 0
+        update_task_status['total'] = 0
+        
+        updater = IncrementalUpdater(progress_callback=progress_callback)
+        
+        if codes:
+            update_task_status['message'] = f'正在更新 {len(codes)} 个ETF...'
+        else:
+            update_task_status['message'] = '正在更新所有ETF...'
+        
+        results = updater.update_all(codes=codes, verbose=False)
+        
+        update_task_status['message'] = f'更新完成: {results["updated_codes"]} 个ETF, 新增 {results["new_records"]} 条记录'
+        update_task_status['progress'] = 100
+        
+    except Exception as e:
+        update_task_status['message'] = f'更新失败: {str(e)}'
+        update_task_status['progress'] = 0
+    finally:
+        update_task_status['running'] = False
+
+
+@router.post("/update/incremental", response_model=ApiResponse)
+async def incremental_update(
+    background_tasks: BackgroundTasks,
+    codes: Optional[List[str]] = Query(None, description="指定要更新的ETF代码列表")
+):
+    """
+    增量更新ETF历史数据（后台任务）
+    
+    对于每个ETF，从数据库中最新日期的下一天开始获取新数据
+    如果没有指定codes，则更新所有ETF
+    
+    - **codes**: 可选，指定要更新的ETF代码列表
+    """
+    global update_task_status
+    
+    if update_task_status['running']:
+        return ApiResponse(
+            success=False,
+            message="已有更新任务正在运行中",
+            data=update_task_status
+        )
+    
+    background_tasks.add_task(run_incremental_update, codes)
+    
+    return ApiResponse(
+        success=True,
+        message="增量更新任务已启动，请在几分钟后查看状态",
+        data=update_task_status
+    )
+
+
+@router.get("/update/status", response_model=ApiResponse)
+async def get_update_status():
+    """
+    获取增量更新任务状态
+    """
+    global update_task_status
+    
+    return ApiResponse(
+        success=True,
+        message="更新任务状态",
+        data=update_task_status
+    )
