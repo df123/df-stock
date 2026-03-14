@@ -42,7 +42,33 @@
       <el-table :data="displayData" style="width: 100%" v-loading="loading" table-layout="auto">
         <el-table-column prop="code" label="代码" width="100" />
         <el-table-column prop="name" label="名称" min-width="200" />
-        <el-table-column prop="signal_type" label="信号类型" width="150" :formatter="formatSignalType" />
+        <el-table-column prop="signal_type" width="200">
+          <template #header>
+            <div style="display: flex; align-items: center; gap: 8px">
+              <span>信号类型</span>
+              <el-tooltip placement="top" effect="dark">
+                <template #content>
+                  <div style="line-height: 1.8; max-width: 300px">
+                    <strong>信号类型说明：</strong><br/>
+                    • <strong>组合信号</strong>：同时满足MACD金叉 + 价格在布林带中轨之上<br/>
+                    • <strong>MACD金叉</strong>：MACD快线上穿信号线，看涨信号<br/>
+                    • <strong>MACD死叉</strong>：MACD快线下穿信号线，看跌信号<br/>
+                    • <strong>布林带突破上轨</strong>：价格突破布林带上轨<br/>
+                    • <strong>布林带突破下轨</strong>：价格跌破布林带下轨<br/>
+                    • <strong>布林带收缩</strong>：带宽较窄，可能即将突破<br/>
+                    • <strong>高成交量</strong>：成交量异常放大
+                  </div>
+                </template>
+                <el-icon style="cursor: help; color: #909399; font-size: 14px">
+                  <QuestionFilled />
+                </el-icon>
+              </el-tooltip>
+            </div>
+          </template>
+          <template #default="{ row }">
+            {{ formatSignalType(row, null, row.signal_type) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="close" label="最新价" width="100" :formatter="formatNumber3" />
         <el-table-column prop="date" label="日期" width="120" />
         <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'macd'" prop="macd_fast" label="MACD快线" width="100" :formatter="formatNumber3" />
@@ -73,6 +99,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { QuestionFilled } from '@element-plus/icons-vue'
 import { screeningAPI } from '@/api/endpoints'
 
 const queryParams = ref({
