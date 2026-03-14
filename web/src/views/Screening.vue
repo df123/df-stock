@@ -40,7 +40,13 @@
       </el-form>
       
       <el-table :data="displayData" style="width: 100%" v-loading="loading" table-layout="auto">
-        <el-table-column prop="code" label="代码" width="100" />
+        <el-table-column prop="code" label="代码" width="100">
+          <template #default="{ row }">
+            <el-link type="primary" :href="getFundUrl(row.code)" target="_blank" :underline="false">
+              {{ row.code }}
+            </el-link>
+          </template>
+        </el-table-column>
         <el-table-column prop="name" label="名称" min-width="200" />
         <el-table-column prop="signal_type" width="200">
           <template #header>
@@ -206,6 +212,16 @@ const formatSignalType = (row, column, cellValue) => {
     'High Volume': '高成交量'
   }
   return signalTypeMap[cellValue] || cellValue || '-'
+}
+
+const getFundUrl = (code) => {
+  // 同花顺ETF链接格式：https://fund.10jqka.com.cn/{code}/
+  // 去除可能存在的sh/sz前缀，只使用纯数字代码
+  let cleanCode = code
+  if (code.startsWith('sh') || code.startsWith('sz')) {
+    cleanCode = code.substring(2)
+  }
+  return `https://fund.10jqka.com.cn/${cleanCode}/`
 }
 
 onMounted(() => {
