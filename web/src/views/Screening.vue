@@ -215,13 +215,18 @@ const formatSignalType = (row, column, cellValue) => {
 }
 
 const getFundUrl = (code) => {
-  // 同花顺ETF链接格式：https://fund.10jqka.com.cn/{code}/
-  // 去除可能存在的sh/sz前缀，只使用纯数字代码
-  let cleanCode = code
-  if (code.startsWith('sh') || code.startsWith('sz')) {
-    cleanCode = code.substring(2)
+  // 新浪财经ETF链接格式：http://finance.sina.com.cn/fund/etf/{code}.shtml
+  // 如果代码不带前缀，根据第一位判断添加sh或sz前缀
+  let fullCode = code
+  if (!code.startsWith('sh') && !code.startsWith('sz')) {
+    const firstDigit = code.charAt(0)
+    if (firstDigit === '5' || firstDigit === '6') {
+      fullCode = `sh${code}`
+    } else {
+      fullCode = `sz${code}`
+    }
   }
-  return `https://fund.10jqka.com.cn/${cleanCode}/`
+  return `http://finance.sina.com.cn/fund/etf/${fullCode}.shtml`
 }
 
 onMounted(() => {
