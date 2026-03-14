@@ -42,7 +42,7 @@
       <el-table :data="displayData" style="width: 100%" v-loading="loading" table-layout="auto">
         <el-table-column prop="code" label="代码" width="100" />
         <el-table-column prop="name" label="名称" min-width="200" />
-        <el-table-column prop="signal_type" label="信号类型" width="150" />
+        <el-table-column prop="signal_type" label="信号类型" width="150" :formatter="formatSignalType" />
         <el-table-column prop="close" label="最新价" width="100" :formatter="formatNumber3" />
         <el-table-column prop="date" label="日期" width="120" />
         <el-table-column v-if="queryParams.strategyType === 'combined' || queryParams.strategyType === 'macd'" prop="macd_fast" label="MACD快线" width="100" :formatter="formatNumber3" />
@@ -166,6 +166,19 @@ const formatNumber3 = (row, column, cellValue) => {
     return '-'
   }
   return Number(cellValue).toFixed(3)
+}
+
+const formatSignalType = (row, column, cellValue) => {
+  const signalTypeMap = {
+    'MACD Golden Cross': 'MACD金叉',
+    'MACD Death Cross': 'MACD死叉',
+    'BB Upper Break': '布林带突破上轨',
+    'BB Lower Break': '布林带突破下轨',
+    'BB Squeeze': '布林带收缩',
+    'Combined Signal': '组合信号',
+    'High Volume': '高成交量'
+  }
+  return signalTypeMap[cellValue] || cellValue || '-'
 }
 
 onMounted(() => {
