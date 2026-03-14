@@ -108,7 +108,7 @@ async def get_history_with_indicators(
             )
             
             if indicators in ['all', 'macd']:
-                indicator_data.macd = float(row.get('macd', 0)) if pd.notna(row.get('macd')) else None
+                indicator_data.macd = float(row.get('macd_fast', 0)) if pd.notna(row.get('macd_fast')) else None
                 indicator_data.macd_signal = float(row.get('macd_signal', 0)) if pd.notna(row.get('macd_signal')) else None
                 indicator_data.macd_hist = float(row.get('macd_hist', 0)) if pd.notna(row.get('macd_hist')) else None
             

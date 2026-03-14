@@ -39,10 +39,10 @@
         </el-form-item>
       </el-form>
       
-      <el-table :data="displayData" style="width: 100%" v-loading="loading" table-layout="auto">
+      <el-table :data="displayData" style="width: 100%" v-loading="loading" table-layout="auto" @row-click="handleRowClick">
         <el-table-column prop="code" label="代码" width="100">
           <template #default="{ row }">
-            <el-link type="primary" :href="getFundUrl(row.code)" target="_blank" :underline="false">
+            <el-link type="primary" :href="getFundUrl(row.code)" target="_blank" :underline="false" @click.stop>
               {{ row.code }}
             </el-link>
           </template>
@@ -100,13 +100,22 @@
         @current-change="handleCurrentChange"
       />
     </el-card>
+
+    <el-dialog v-model="dialogVisible" :title="`${selectedEtf?.code || ''} - ${selectedEtf?.name || ''}`" width="90%" top="5vh">
+      <div v-loading="loadingChart" class="chart-container">
+        <div ref="mainChartRef" class="main-chart"></div>
+        <div ref="macdChartRef" class="macd-chart"></div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { screeningAPI } from '@/api/endpoints'
+import axios from 'axios'
+import * as echarts from 'echarts'
 
 const queryParams = ref({
   strategyType: 'combined',
@@ -122,6 +131,16 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(13)
 const total = ref(0)
+
+const dialogVisible = ref(false)
+const selectedEtf = ref(null)
+const loadingChart = ref(false)
+
+const mainChartRef = ref(null)
+const macdChartRef = ref(null)
+
+const mainChart = ref(null)
+const macdChart = ref(null)
 
 const displayData = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
@@ -185,6 +204,298 @@ const screen = async () => {
   }
 }
 
+const handleRowClick = async (row) => {
+  selectedEtf.value = row
+  dialogVisible.value = true
+  await nextTick()
+  await nextTick()
+  await loadChartData(row.code)
+}
+
+const loadChartData = async (code) => {
+  loadingChart.value = true
+  try {
+    const startDate = new Date()
+    startDate.setMonth(startDate.getMonth() - 3)
+    const startDateStr = startDate.toISOString().slice(0, 10).replace(/-/g, '')
+    
+    const response = await axios.get(`http://localhost:8000/api/history/${code}/indicators`, {
+      params: {
+        start_date: startDateStr,
+        indicators: 'all'
+      }
+    })
+    
+    if (response.data.success && response.data.data.length > 0) {
+      await nextTick()
+      await nextTick()
+      initCharts()
+      updateCharts(response.data.data)
+    }
+  } catch (error) {
+    console.error('加载图表数据失败:', error)
+  } finally {
+    loadingChart.value = false
+  }
+}
+
+const initCharts = () => {
+  console.log('initCharts called', {
+    mainChartRef: !!mainChartRef.value,
+    macdChartRef: !!macdChartRef.value
+  })
+  
+  if (mainChartRef.value) {
+    if (mainChart.value) {
+      mainChart.value.dispose()
+    }
+    mainChart.value = echarts.init(mainChartRef.value)
+    console.log('Main chart initialized')
+  }
+  
+  if (macdChartRef.value) {
+    if (macdChart.value) {
+      macdChart.value.dispose()
+    }
+    macdChart.value = echarts.init(macdChartRef.value)
+    console.log('MACD chart initialized')
+  }
+}
+
+const updateCharts = (data) => {
+  console.log('updateCharts called', {
+    dataLength: data.length,
+    mainChart: !!mainChart.value,
+    macdChart: !!macdChart.value
+  })
+  
+  if (!mainChart.value || !macdChart.value) {
+    console.error('Charts not initialized')
+    return
+  }
+  
+  const dates = data.map(d => d.date)
+  const closes = data.map(d => d.close)
+  const bbUppers = data.map(d => d.bb_upper)
+  const bbMiddles = data.map(d => d.bb_middle)
+  const bbLowers = data.map(d => d.bb_lower)
+  const macds = data.map(d => d.macd)
+  const macdSignals = data.map(d => d.macd_signal)
+  const macdHists = data.map(d => d.macd_hist)
+  
+  console.log('Data extracted', {
+    dates: dates.length,
+    closes: closes.length,
+    macds: macds.filter(m => m !== null).length,
+    macdSignals: macdSignals.filter(m => m !== null).length,
+    macdHists: macdHists.filter(m => m !== null).length
+  })
+  
+  const mainOption = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'cross'
+      },
+      formatter: function(params) {
+        let result = params[0].axisValue + '<br/>'
+        params.forEach(param => {
+          if (param.value !== null && param.value !== undefined) {
+            result += `${param.marker} ${param.seriesName}: ${Number(param.value).toFixed(3)}<br/>`
+          }
+        })
+        return result
+      }
+    },
+    legend: {
+      data: ['收盘价', '布林带上轨', '布林带中轨', '布林带下轨']
+    },
+    grid: {
+      left: '3%',
+      right: '3%',
+      bottom: '3%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      scale: true
+    },
+    yAxis: {
+      type: 'value',
+      scale: true,
+      axisLabel: {
+        formatter: '{value}'
+      }
+    },
+    dataZoom: [
+      {
+        type: 'inside',
+        start: 50,
+        end: 100
+      },
+      {
+        show: true,
+        type: 'slider',
+        top: '90%',
+        start: 50,
+        end: 100
+      }
+    ],
+    series: [
+      {
+        name: '收盘价',
+        type: 'line',
+        data: closes,
+        smooth: true,
+        itemStyle: {
+          color: '#5470c6'
+        },
+        lineStyle: {
+          width: 2
+        }
+      },
+      {
+        name: '布林带上轨',
+        type: 'line',
+        data: bbUppers,
+        smooth: true,
+        itemStyle: {
+          color: '#ee6666'
+        },
+        lineStyle: {
+          width: 1,
+          type: 'dashed'
+        }
+      },
+      {
+        name: '布林带中轨',
+        type: 'line',
+        data: bbMiddles,
+        smooth: true,
+        itemStyle: {
+          color: '#91cc75'
+        },
+        lineStyle: {
+          width: 1
+        }
+      },
+      {
+        name: '布林带下轨',
+        type: 'line',
+        data: bbLowers,
+        smooth: true,
+        itemStyle: {
+          color: '#ee6666'
+        },
+        lineStyle: {
+          width: 1,
+          type: 'dashed'
+        }
+      }
+    ]
+  }
+  
+  const macdOption = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'cross'
+      },
+      formatter: function(params) {
+        let result = params[0].axisValue + '<br/>'
+        params.forEach(param => {
+          if (param.value !== null && param.value !== undefined) {
+            result += `${param.marker} ${param.seriesName}: ${Number(param.value).toFixed(3)}<br/>`
+          }
+        })
+        return result
+      }
+    },
+    legend: {
+      data: ['MACD（快线）', '慢线（信号线）', '柱状图']
+    },
+    grid: {
+      left: '3%',
+      right: '3%',
+      bottom: '3%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      scale: true
+    },
+    yAxis: {
+      type: 'value',
+      scale: true,
+      axisLabel: {
+        formatter: '{value}'
+      }
+    },
+    dataZoom: [
+      {
+        type: 'inside',
+        start: 50,
+        end: 100
+      },
+      {
+        show: true,
+        type: 'slider',
+        top: '90%',
+        start: 50,
+        end: 100
+      }
+    ],
+    series: [
+      {
+        name: 'MACD（快线）',
+        type: 'line',
+        data: macds,
+        smooth: true,
+        itemStyle: {
+          color: '#5470c6'
+        },
+        lineStyle: {
+          width: 2
+        }
+      },
+      {
+        name: '慢线（信号线）',
+        type: 'line',
+        data: macdSignals,
+        smooth: true,
+        itemStyle: {
+          color: '#fac858'
+        },
+        lineStyle: {
+          width: 2
+        }
+      },
+      {
+        name: '柱状图',
+        type: 'bar',
+        data: macdHists.map((val, idx) => {
+          return {
+            value: val,
+            itemStyle: {
+              color: val >= 0 ? '#91cc75' : '#ee6666'
+            }
+          }
+        }),
+        itemStyle: {
+          color: (params) => {
+            return params.value >= 0 ? '#91cc75' : '#ee6666'
+          }
+        }
+      }
+    ]
+  }
+  
+  mainChart.value.setOption(mainOption)
+  macdChart.value.setOption(macdOption)
+}
+
 const handleSizeChange = (val) => {
   pageSize.value = val
   currentPage.value = 1
@@ -215,8 +526,6 @@ const formatSignalType = (row, column, cellValue) => {
 }
 
 const getFundUrl = (code) => {
-  // 东方财富ETF链接格式：http://fund.eastmoney.com/{code}.html
-  // 去除可能存在的sh/sz前缀，只使用纯数字代码
   let cleanCode = code
   if (code.startsWith('sh') || code.startsWith('sz')) {
     cleanCode = code.substring(2)
@@ -226,6 +535,19 @@ const getFundUrl = (code) => {
 
 onMounted(() => {
   screen()
+  window.addEventListener('resize', () => {
+    mainChart.value?.resize()
+    macdChart.value?.resize()
+  })
+})
+
+onUnmounted(() => {
+  if (mainChart.value) {
+    mainChart.value.dispose()
+  }
+  if (macdChart.value) {
+    macdChart.value.dispose()
+  }
 })
 </script>
 
@@ -242,5 +564,24 @@ onMounted(() => {
 
 .el-table .el-table__body-wrapper {
   width: 100%;
+}
+
+.el-table :deep(.el-table__body tr:hover > td) {
+  cursor: pointer;
+}
+
+.chart-container {
+  min-height: 600px;
+}
+
+.main-chart {
+  width: 100%;
+  height: 350px;
+  margin-bottom: 20px;
+}
+
+.macd-chart {
+  width: 100%;
+  height: 250px;
 }
 </style>
