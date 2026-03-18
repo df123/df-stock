@@ -8,7 +8,7 @@ from data.etf_data_fetcher import ETFDataFetcher
 from indicators.technical_indicators import TechnicalIndicators
 from backtest.backtest_engine import BacktestEngine
 from screening.stock_screener import ETFScreener
-from utils.helpers import VisualizationUtils, DateUtils
+from utils.helpers import VisualizationUtils
 
 
 def example_1_realtime_data():

@@ -4,8 +4,6 @@
 import os
 
 class Config:
-    AKSHARE_DATA_SOURCE = 'em'
-    
     MACD_DEFAULT_FAST = 12
     MACD_DEFAULT_SLOW = 26
     MACD_DEFAULT_SIGNAL = 9
@@ -17,15 +15,6 @@ class Config:
     
     DEFAULT_COMMISSION = 0.0003
     DEFAULT_INITIAL_CASH = 100000.0
-    
-    SCREENING_MIN_DAYS = 60
-    SCREENING_DEFAULT_LOOKBACK = 60
-    SCREENING_VOLUME_RATIO = 2.0
-    
-    PLOT_DEFAULT_FIGSIZE = (14, 8)
-    PLOT_DPI = 100
-    
-    BACKTEST_ANNUAL_TRADING_DAYS = 252
     
     DB_PATH = os.path.join(os.path.dirname(__file__), 'db', 'etf_data.db')
     DB_ENABLED = True

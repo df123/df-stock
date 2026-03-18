@@ -113,9 +113,7 @@ def test_strategies():
     print("\n=== 测试策略模块 ===")
     try:
         from data.etf_data_fetcher import ETFDataFetcher
-        from strategies.macd_strategy import run_macd_strategy
-        from strategies.bollinger_strategy import run_bb_strategy
-        from strategies.combined_strategy import run_combined_strategy
+        from backtest.backtest_engine import BacktestEngine
         
         fetcher = ETFDataFetcher()
         df = fetcher.get_etf_history('510300', '20240101', '20240201')
@@ -124,13 +122,15 @@ def test_strategies():
             print("✗ 获取历史数据失败")
             return False
         
-        results_macd, _ = run_macd_strategy(df, strategy_type='basic')
+        engine = BacktestEngine()
+        
+        results_macd, _ = engine.run_macd_backtest(df, strategy_type='basic')
         print("✓ MACD策略回测成功")
         
-        results_bb, _ = run_bb_strategy(df, strategy_type='breakthrough')
+        results_bb, _ = engine.run_bb_backtest(df, strategy_type='breakthrough')
         print("✓ 布林带策略回测成功")
         
-        results_combined, _ = run_combined_strategy(df, strategy_type='standard')
+        results_combined, _ = engine.run_combined_backtest(df, strategy_type='standard')
         print("✓ 组合策略回测成功")
         
         return True

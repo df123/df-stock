@@ -14,9 +14,6 @@ from data.database import DatabaseManager
 from indicators.technical_indicators import TechnicalIndicators
 from backtest.backtest_engine import BacktestEngine
 from screening.stock_screener import ETFScreener
-from strategies.macd_strategy import run_macd_strategy
-from strategies.bollinger_strategy import run_bb_strategy
-from strategies.combined_strategy import run_combined_strategy
 from utils.helpers import VisualizationUtils, DateUtils
 from config import Config
 
@@ -258,8 +255,8 @@ def handle_db_query(args):
             elif args.table == 'backtest_results':
                 df = db_manager.query_backtest_results(args.strategy, args.symbol)
             else:
-                df = db_manager.export_to_csv(args.table, '/dev/null', filters)
-                df = db_manager.query_etf_history('', filters.get('date', ''), filters.get('date', ''))
+                print(f"错误: 不支持的表类型 '{args.table}'")
+                return
             
             if not df.empty:
                 print(f"找到 {len(df)} 条记录")

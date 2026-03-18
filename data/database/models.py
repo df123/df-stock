@@ -1,7 +1,6 @@
 """
 数据库表模型定义
 """
-import sqlite3
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import pandas as pd

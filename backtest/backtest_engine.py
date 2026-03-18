@@ -111,7 +111,7 @@ class BacktestEngine:
         
         try:
             analyzer_results['trades_list'] = strat.get_trades_log()
-        except:
+        except (KeyError, TypeError, AttributeError, Exception):
             analyzer_results['trades_list'] = []
         
         return analyzer_results, cerebro
@@ -125,14 +125,14 @@ class BacktestEngine:
         
         try:
             results['sharpe_ratio'] = strat.analyzers.sharpe.get_analysis()['sharperatio']
-        except:
+        except (KeyError, TypeError, AttributeError, Exception):
             results['sharpe_ratio'] = None
         
         try:
             dd = strat.analyzers.drawdown.get_analysis()
             results['max_drawdown'] = dd['max']['drawdown']
             results['max_drawdown_money'] = dd['max']['moneydown']
-        except:
+        except (KeyError, TypeError, AttributeError, Exception):
             results['max_drawdown'] = None
             results['max_drawdown_money'] = None
         
@@ -145,7 +145,7 @@ class BacktestEngine:
                 results['win_rate'] = trades['won']['total'] / trades['total']['total']
             else:
                 results['win_rate'] = 0
-        except:
+        except (KeyError, TypeError, AttributeError, Exception):
             results['total_trades'] = 0
             results['won_trades'] = 0
             results['lost_trades'] = 0

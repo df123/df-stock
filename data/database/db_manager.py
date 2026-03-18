@@ -195,11 +195,7 @@ class DatabaseManager:
             placeholders = ', '.join(['?'] * len(columns))
             columns_str = ', '.join(columns)
             
-            if conflict_columns:
-                conflict_str = ', '.join(conflict_columns)
-                sql = f"INSERT OR REPLACE INTO {table} ({columns_str}) VALUES ({placeholders})"
-            else:
-                sql = f"INSERT OR REPLACE INTO {table} ({columns_str}) VALUES ({placeholders})"
+            sql = f"INSERT OR REPLACE INTO {table} ({columns_str}) VALUES ({placeholders})"
             
             count = 0
             for record in records:

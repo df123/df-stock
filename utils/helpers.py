@@ -4,6 +4,17 @@ from typing import Optional
 from indicators.technical_indicators import TechnicalIndicators
 
 
+DB_TO_CN_COLUMNS = {
+    'date': '日期',
+    'open': '开盘',
+    'high': '最高',
+    'low': '最低',
+    'close': '收盘',
+    'volume': '成交量',
+    'amount': '成交额'
+}
+
+
 class VisualizationUtils:
     
     @staticmethod
@@ -203,19 +214,9 @@ class VisualizationUtils:
 class DateUtils:
     
     @staticmethod
-    def get_trading_days_back(days: int) -> str:
-        from datetime import datetime, timedelta
-        return (datetime.now() - timedelta(days=days + 20)).strftime('%Y%m%d')
-    
-    @staticmethod
     def get_today() -> str:
         from datetime import datetime
         return datetime.now().strftime('%Y%m%d')
-    
-    @staticmethod
-    def format_date(date_str: str, format: str = '%Y%m%d') -> str:
-        from datetime import datetime
-        return pd.to_datetime(date_str).strftime('%Y-%m-%d')
 
 
 if __name__ == '__main__':

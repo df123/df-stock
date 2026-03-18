@@ -90,11 +90,8 @@ async def screen_combined(
     init_services()
     
     try:
-        normalized_end_date = end_date if end_date else None
         
-        print(f"[DEBUG] screen_combined called with params:")
         print(f"  end_date: {end_date}")
-        print(f"  normalized_end_date: {normalized_end_date}")
         print(f"  lookback_days: {lookback_days}")
         print(f"  require_macd_golden: {require_macd_golden}")
         print(f"  require_bb_above_middle: {require_bb_above_middle}")
@@ -102,13 +99,12 @@ async def screen_combined(
         print(f"  backtest_years: {backtest_years}")
         
         df = screener.screen_by_combined(
-            end_date=normalized_end_date,
+            end_date=end_date,
             lookback_days=lookback_days,
             require_macd_golden=require_macd_golden,
             require_bb_above_middle=require_bb_above_middle
         )
         
-        print(f"[DEBUG] screen_combined result: {len(df)} rows")
         
         if limit:
             df = df.head(limit)
@@ -117,7 +113,6 @@ async def screen_combined(
         
         # 如果启用批量推演
         if backtest:
-            print(f"[DEBUG] Starting batch backtest for {len(data)} ETFs...")
             for item in data:
                 code = item['code']
                 backtest_result = run_backtest_for_etf(code, 'combined/standard', backtest_years)
@@ -141,7 +136,6 @@ async def screen_combined(
                     item['bt_win_rate'] = None
                     item['bt_total_trades'] = None
             
-            print(f"[DEBUG] Batch backtest completed")
         
         return ApiResponse(
             success=True,
@@ -178,10 +172,9 @@ async def screen_macd(
     init_services()
     
     try:
-        normalized_end_date = end_date if end_date else None
         
         df = screener.screen_by_macd(
-            end_date=normalized_end_date,
+            end_date=end_date,
             lookback_days=lookback_days,
             include_golden_cross=include_golden_cross,
             include_death_cross=include_death_cross
@@ -194,7 +187,6 @@ async def screen_macd(
         
         # 如果启用批量推演
         if backtest:
-            print(f"[DEBUG] Starting MACD batch backtest for {len(data)} ETFs...")
             for item in data:
                 code = item['code']
                 backtest_result = run_backtest_for_etf(code, 'macd/basic', backtest_years)
@@ -218,7 +210,6 @@ async def screen_macd(
                     item['bt_win_rate'] = None
                     item['bt_total_trades'] = None
             
-            print(f"[DEBUG] MACD batch backtest completed")
         
         return ApiResponse(
             success=True,
@@ -253,10 +244,9 @@ async def screen_bollinger(
     init_services()
     
     try:
-        normalized_end_date = end_date if end_date else None
         
         df = screener.screen_by_bollinger(
-            end_date=normalized_end_date,
+            end_date=end_date,
             lookback_days=lookback_days,
             include_upper_break=include_upper_break,
             include_lower_break=include_lower_break,
@@ -297,7 +287,6 @@ async def screen_volume(
     init_services()
     
     try:
-        normalized_end_date = end_date if end_date else None
         
         df = screener.screen_by_volume(
             min_volume_ratio=min_volume_ratio,

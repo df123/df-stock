@@ -115,18 +115,10 @@ class ETFDataFetcher:
                 df = ak.fund_etf_hist_sina(symbol=symbol)
             
             # 列名映射（新浪财经返回英文列名，需要转换为中文）
-            column_mapping = {
-                'date': '日期',
-                'open': '开盘',
-                'high': '最高',
-                'low': '最低',
-                'close': '收盘',
-                'volume': '成交量',
-                'amount': '成交额'
-            }
+            from utils.helpers import DB_TO_CN_COLUMNS
             
             if not df.empty:
-                df = df.rename(columns=column_mapping)
+                df = df.rename(columns=DB_TO_CN_COLUMNS)
                 
                 # 根据参数过滤日期范围
                 if '日期' in df.columns:
@@ -186,20 +178,6 @@ class ETFDataFetcher:
             return df_sorted.head(top_n)
         
         return pd.DataFrame()
-    
-    def get_etf_dividend(self, symbol: str) -> pd.DataFrame:
-        """
-        获取ETF分红信息
-        数据源: 新浪财经
-        """
-        full_symbol = symbol
-        if not symbol.startswith(('sh', 'sz', 'SH', 'SZ')):
-            if symbol.startswith('5') or symbol.startswith('6'):
-                full_symbol = f'sh{symbol}'
-            else:
-                full_symbol = f'sz{symbol}'
-        
-        return ak.fund_etf_dividend_sina(symbol=full_symbol)
     
     def clear_cache(self):
         """清除缓存"""

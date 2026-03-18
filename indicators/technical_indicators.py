@@ -1,6 +1,5 @@
 import pandas as pd
 import pandas_ta as ta
-import numpy as np
 from typing import Tuple, Dict
 
 
@@ -17,12 +16,17 @@ class TechnicalIndicators:
         if df.empty:
             return df
         
+        if len(df) < slow + signal:
+            return df
+        
         close_prices = df[price_col]
         
         macd_result = ta.macd(close_prices, fast=fast, slow=slow, signal=signal)
         
+        if macd_result is None:
+            return df
+        
         df['macd_fast'] = macd_result[f'MACD_{fast}_{slow}_{signal}']
-        df['macd_slow'] = macd_result[f'MACDh_{fast}_{slow}_{signal}']
         df['macd_signal'] = macd_result[f'MACDs_{fast}_{slow}_{signal}']
         df['macd_hist'] = macd_result[f'MACDh_{fast}_{slow}_{signal}']
         
@@ -43,9 +47,15 @@ class TechnicalIndicators:
         if df.empty:
             return df
         
+        if len(df) < length:
+            return df
+        
         close_prices = df[price_col]
         
         bbands_result = ta.bbands(close_prices, length=length, std=std)
+        
+        if bbands_result is None:
+            return df
         
         df['bb_upper'] = bbands_result[f'BBU_{length}_{std}_{std}']
         df['bb_middle'] = bbands_result[f'BBM_{length}_{std}_{std}']

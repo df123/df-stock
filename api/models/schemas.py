@@ -50,31 +50,6 @@ class IndicatorData(BaseModel):
         from_attributes = True
 
 
-class BacktestRequest(BaseModel):
-    """回测请求模型"""
-    symbol: str = Field(..., description="ETF代码")
-    strategy: str = Field(..., description="策略类型: macd, bb, combined")
-    start_date: str = Field(..., description="开始日期(YYYYMMDD)")
-    end_date: Optional[str] = Field(None, description="结束日期(YYYYMMDD)")
-    initial_cash: Optional[float] = Field(100000, description="初始资金")
-    commission: Optional[float] = Field(0.0003, description="手续费率")
-
-
-class BacktestResult(BaseModel):
-    """回测结果模型"""
-    strategy: str = Field(..., description="策略类型")
-    code: str = Field(..., description="ETF代码")
-    start_date: str = Field(..., description="开始日期")
-    end_date: str = Field(..., description="结束日期")
-    initial_cash: float = Field(..., description="初始资金")
-    final_value: float = Field(..., description="最终价值")
-    total_return: float = Field(..., description="总收益率(%)")
-    max_drawdown: float = Field(..., description="最大回撤(%)")
-    sharpe_ratio: Optional[float] = Field(None, description="夏普比率")
-    win_rate: Optional[float] = Field(None, description="胜率(%)")
-    total_trades: int = Field(..., description="交易次数")
-
-
 class ScreeningRequest(BaseModel):
     """筛选请求模型"""
     strategy: str = Field(..., description="策略类型: macd, bb, combined, volume")

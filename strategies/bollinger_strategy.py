@@ -1,6 +1,5 @@
 import pandas as pd
 import backtrader as bt
-from indicators.technical_indicators import TechnicalIndicators
 
 
 class BollingerBandsStrategy(bt.Strategy):
@@ -185,101 +184,15 @@ class BBSqueezeStrategy(bt.Strategy):
                 self.sell(size=self.position.size)
 
 
-def run_bb_strategy(
-    df: pd.DataFrame,
-    initial_cash: float = 100000,
-    commission: float = 0.0003,
-    strategy_type: str = 'breakthrough',
-    period: int = 20,
-    devfactor: float = 2.0
-):
-    df = df.copy()
-    df['datetime'] = pd.to_datetime(df['日期'])
-    df.set_index('datetime', inplace=True)
-    df = df.rename(columns={
-        '开盘': 'open',
-        '最高': 'high',
-        '最低': 'low',
-        '收盘': 'close',
-        '成交量': 'volume',
-    })
-    
-    cerebro = bt.Cerebro()
-    
-    data = bt.feeds.PandasData(
-        dataname=df,
-        datetime=None,
-        open='open',
-        high='high',
-        low='low',
-        close='close',
-        volume='volume'
-    )
-    
-    cerebro.adddata(data)
-    
-    if strategy_type == 'breakthrough':
-        cerebro.addstrategy(BollingerBandsStrategy, period=period, devfactor=devfactor)
-    elif strategy_type == 'mean_reversion':
-        cerebro.addstrategy(BBMeanReversionStrategy, period=period, devfactor=devfactor)
-    elif strategy_type == 'squeeze':
-        cerebro.addstrategy(BBSqueezeStrategy, period=period, devfactor=devfactor)
-    
-    cerebro.broker.setcash(initial_cash)
-    cerebro.broker.setcommission(commission=commission)
-    
-    cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
-    cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
-    cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
-    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trades')
-    
-    results = cerebro.run()
-    strat = results[0]
-    
-    analyzer_results = {
-        'initial_cash': initial_cash,
-        'final_value': cerebro.broker.getvalue(),
-        'total_return': (cerebro.broker.getvalue() - initial_cash) / initial_cash,
-    }
-    
-    try:
-        analyzer_results['sharpe_ratio'] = strat.analyzers.sharpe.get_analysis()['sharperatio']
-    except:
-        analyzer_results['sharpe_ratio'] = None
-    
-    try:
-        dd = strat.analyzers.drawdown.get_analysis()
-        analyzer_results['max_drawdown'] = dd['max']['drawdown']
-        analyzer_results['max_drawdown_money'] = dd['max']['moneydown']
-    except:
-        analyzer_results['max_drawdown'] = None
-        analyzer_results['max_drawdown_money'] = None
-    
-    try:
-        trades = strat.analyzers.trades.get_analysis()
-        analyzer_results['total_trades'] = trades['total']['total']
-        analyzer_results['won_trades'] = trades['won']['total']
-        analyzer_results['lost_trades'] = trades['lost']['total']
-        if trades['total']['total'] > 0:
-            analyzer_results['win_rate'] = trades['won']['total'] / trades['total']['total']
-        else:
-            analyzer_results['win_rate'] = 0
-    except:
-        analyzer_results['total_trades'] = 0
-        analyzer_results['won_trades'] = 0
-        analyzer_results['lost_trades'] = 0
-        analyzer_results['win_rate'] = 0
-    
-    return analyzer_results, cerebro
-
-
 if __name__ == '__main__':
+    from backtest.backtest_engine import BacktestEngine
     from data.etf_data_fetcher import ETFDataFetcher
     
     fetcher = ETFDataFetcher()
     df = fetcher.get_etf_history('510300', '20220101', '20240201')
     
-    results, cerebro = run_bb_strategy(df, strategy_type='breakthrough')
+    engine = BacktestEngine()
+    results, cerebro = engine.run_bb_backtest(df, strategy_type='breakthrough')
     
     print("=== Bollinger Bands Breakthrough Strategy Backtest Results ===")
     for key, value in results.items():

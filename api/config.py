@@ -22,10 +22,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list = ["http://localhost:8080", "http://localhost:3000", "http://127.0.0.1:8080"]
     
     # 数据库配置
-    DB_PATH: str = "data/etf_data.db"
-    
-    # 缓存配置（秒）
-    CACHE_TTL: int = 300  # 5分钟
+    DB_PATH: str = "db/etf_data.db"
     
     class Config:
         env_file = ".env"

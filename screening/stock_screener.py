@@ -8,18 +8,17 @@ import sqlite3
 
 class ETFScreener:
     
-    def __init__(self, min_days: int = 30):
+    def __init__(self, min_days: int = 35):
         self.fetcher = ETFDataFetcher()
         self.db_manager = DatabaseManager()
         self.min_days = min_days
     
     def _get_all_codes(self, limit: int = 1000) -> List[str]:
         """获取所有ETF代码，去重处理带前缀和不带前缀的重复代码"""
-        conn = sqlite3.connect(self.db_manager.db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT code FROM etf_history ORDER BY code")
-        all_codes = [row[0] for row in cursor.fetchall()]
-        conn.close()
+        with self.db_manager._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT code FROM etf_history ORDER BY code")
+            all_codes = [row[0] for row in cursor.fetchall()]
         
         seen = set()
         unique_codes = []
@@ -44,7 +43,7 @@ class ETFScreener:
     ) -> pd.DataFrame:
         from datetime import datetime, timedelta
         
-        if end_date is None:
+        if end_date is None or end_date == '':
             end_date = datetime.now().strftime('%Y-%m-%d')
         else:
             end_date = pd.to_datetime(end_date).strftime('%Y-%m-%d')
@@ -52,13 +51,16 @@ class ETFScreener:
         start_date = (pd.to_datetime(end_date) - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
         
         etf_list_df = self.db_manager.query_etf_list()
+        if not etf_list_df.empty:
+            etf_name_map = etf_list_df.set_index('code')['name'].to_dict()
+        else:
+            etf_name_map = {}
         
         if etf_list_df.empty:
             return pd.DataFrame()
         
         codes = self._get_all_codes(1000)
         
-        print(f"[DEBUG] screen_by_macd: {len(codes)} codes to process")
         
         results = []
         
@@ -69,26 +71,16 @@ class ETFScreener:
                 if df.empty or len(df) < self.min_days:
                     continue
                 
-                print(f"[DEBUG] Processing code {i+1}/{len(codes)}: {code}, {len(df)} rows")
                 
-                column_mapping = {
-                    'date': '日期',
-                    'open': '开盘',
-                    'high': '最高',
-                    'low': '最低',
-                    'close': '收盘',
-                    'volume': '成交量',
-                    'amount': '成交额'
-                }
+                from utils.helpers import DB_TO_CN_COLUMNS
                 
-                df = df.rename(columns=column_mapping)
+                df = df.rename(columns=DB_TO_CN_COLUMNS)
                 df = TechnicalIndicators.calculate_macd(df)
                 
                 latest_signals = TechnicalIndicators.get_latest_signals(df)
                 
                 if include_golden_cross and latest_signals.get('macd_golden_cross'):
-                    name_row = etf_list_df[etf_list_df['code'] == code]
-                    etf_name = name_row.iloc[0]['name'] if len(name_row) > 0 else ''
+                    etf_name = etf_name_map.get(code, '')
                     
                     results.append({
                         'code': code,
@@ -101,8 +93,7 @@ class ETFScreener:
                     })
                 
                 if include_death_cross and latest_signals.get('macd_death_cross'):
-                    name_row = etf_list_df[etf_list_df['code'] == code]
-                    etf_name = name_row.iloc[0]['name'] if len(name_row) > 0 else ''
+                    etf_name = etf_name_map.get(code, '')
                     
                     results.append({
                         'code': code,
@@ -117,7 +108,6 @@ class ETFScreener:
                 print(f"[ERROR] Error processing {code}: {e}")
                 continue
         
-        print(f"[DEBUG] screen_by_macd: Found {len(results)} results")
         return pd.DataFrame(results) if results else pd.DataFrame()
     
     def screen_by_bollinger(
@@ -130,7 +120,7 @@ class ETFScreener:
     ) -> pd.DataFrame:
         from datetime import datetime, timedelta
         
-        if end_date is None:
+        if end_date is None or end_date == '':
             end_date = datetime.now().strftime('%Y-%m-%d')
         else:
             end_date = pd.to_datetime(end_date).strftime('%Y-%m-%d')
@@ -138,13 +128,16 @@ class ETFScreener:
         start_date = (pd.to_datetime(end_date) - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
         
         etf_list_df = self.db_manager.query_etf_list()
+        if not etf_list_df.empty:
+            etf_name_map = etf_list_df.set_index('code')['name'].to_dict()
+        else:
+            etf_name_map = {}
         
         if etf_list_df.empty:
             return pd.DataFrame()
         
         codes = self._get_all_codes(1000)
         
-        print(f"[DEBUG] screen_by_bollinger: {len(codes)} codes to process")
         
         results = []
         
@@ -155,26 +148,16 @@ class ETFScreener:
                 if df.empty or len(df) < self.min_days:
                     continue
                 
-                print(f"[DEBUG] Processing code {i+1}/{len(codes)}: {code}, {len(df)} rows")
                 
-                column_mapping = {
-                    'date': '日期',
-                    'open': '开盘',
-                    'high': '最高',
-                    'low': '最低',
-                    'close': '收盘',
-                    'volume': '成交量',
-                    'amount': '成交额'
-                }
+                from utils.helpers import DB_TO_CN_COLUMNS
                 
-                df = df.rename(columns=column_mapping)
+                df = df.rename(columns=DB_TO_CN_COLUMNS)
                 df = TechnicalIndicators.calculate_bollinger_bands(df)
                 
                 latest_signals = TechnicalIndicators.get_latest_signals(df)
                 
                 if include_upper_break and latest_signals.get('bb_upper_break'):
-                    name_row = etf_list_df[etf_list_df['code'] == code]
-                    etf_name = name_row.iloc[0]['name'] if len(name_row) > 0 else ''
+                    etf_name = etf_name_map.get(code, '')
                     
                     results.append({
                         'code': code,
@@ -189,8 +172,7 @@ class ETFScreener:
                     })
                 
                 if include_lower_break and latest_signals.get('bb_lower_break'):
-                    name_row = etf_list_df[etf_list_df['code'] == code]
-                    etf_name = name_row.iloc[0]['name'] if len(name_row) > 0 else ''
+                    etf_name = etf_name_map.get(code, '')
                     
                     results.append({
                         'code': code,
@@ -205,8 +187,7 @@ class ETFScreener:
                     })
                 
                 if include_squeeze and latest_signals.get('bb_squeeze'):
-                    name_row = etf_list_df[etf_list_df['code'] == code]
-                    etf_name = name_row.iloc[0]['name'] if len(name_row) > 0 else ''
+                    etf_name = etf_name_map.get(code, '')
                     
                     results.append({
                         'code': code,
@@ -223,7 +204,6 @@ class ETFScreener:
                 print(f"[ERROR] Error processing {code}: {e}")
                 continue
         
-        print(f"[DEBUG] screen_by_bollinger: Found {len(results)} results")
         return pd.DataFrame(results) if results else pd.DataFrame()
     
     def screen_by_combined(
@@ -235,7 +215,7 @@ class ETFScreener:
     ) -> pd.DataFrame:
         from datetime import datetime, timedelta
         
-        if end_date is None:
+        if end_date is None or end_date == '':
             end_date = datetime.now().strftime('%Y-%m-%d')
         else:
             end_date = pd.to_datetime(end_date).strftime('%Y-%m-%d')
@@ -243,15 +223,16 @@ class ETFScreener:
         start_date = (pd.to_datetime(end_date) - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
         
         etf_list_df = self.db_manager.query_etf_list()
+        if not etf_list_df.empty:
+            etf_name_map = etf_list_df.set_index('code')['name'].to_dict()
+        else:
+            etf_name_map = {}
         
         if etf_list_df.empty:
             return pd.DataFrame()
         
         codes = self._get_all_codes(1000)
         
-        print(f"[DEBUG] screen_by_combined: {len(codes)} codes to process")
-        print(f"[DEBUG] screen_by_combined: start_date={start_date}, end_date={end_date}")
-        print(f"[DEBUG] screen_by_combined: require_macd_golden={require_macd_golden}, require_bb_above_middle={require_bb_above_middle}")
         
         results = []
         
@@ -260,22 +241,12 @@ class ETFScreener:
                 df = self.db_manager.query_etf_history(code, start_date, end_date)
                 
                 if df.empty or len(df) < self.min_days:
-                    print(f"[DEBUG] Skipping {code}: insufficient data ({len(df)} rows)")
                     continue
                 
-                print(f"[DEBUG] Processing code {i+1}/{len(codes)}: {code}, {len(df)} rows")
                 
-                column_mapping = {
-                    'date': '日期',
-                    'open': '开盘',
-                    'high': '最高',
-                    'low': '最低',
-                    'close': '收盘',
-                    'volume': '成交量',
-                    'amount': '成交额'
-                }
+                from utils.helpers import DB_TO_CN_COLUMNS
                 
-                df = df.rename(columns=column_mapping)
+                df = df.rename(columns=DB_TO_CN_COLUMNS)
                 df = TechnicalIndicators.calculate_macd(df)
                 df = TechnicalIndicators.calculate_bollinger_bands(df)
                 
@@ -285,14 +256,10 @@ class ETFScreener:
                 macd_condition = not require_macd_golden or latest_signals.get('macd_golden_cross')
                 bb_condition = not require_bb_above_middle or latest_signals.get('bb_position', 0.5) > 0.5
                 
-                print(f"[DEBUG] {code}: macd_condition={macd_condition}, bb_condition={bb_condition}")
-                print(f"[DEBUG] {code}: macd_golden_cross={latest_signals.get('macd_golden_cross')}, bb_position={latest_signals.get('bb_position', 0.5)}")
                 
                 if macd_condition and bb_condition:
-                    name_row = etf_list_df[etf_list_df['code'] == code]
-                    etf_name = name_row.iloc[0]['name'] if len(name_row) > 0 else ''
+                    etf_name = etf_name_map.get(code, '')
                     
-                    print(f"[DEBUG] MATCH FOUND: {code}")
                     results.append({
                         'code': code,
                         'name': etf_name,
@@ -312,7 +279,6 @@ class ETFScreener:
                 traceback.print_exc()
                 continue
         
-        print(f"[DEBUG] screen_by_combined: Found {len(results)} results")
         return pd.DataFrame(results) if results else pd.DataFrame()
     
     def screen_by_volume(
@@ -323,7 +289,7 @@ class ETFScreener:
     ) -> pd.DataFrame:
         from datetime import datetime, timedelta
         
-        if end_date is None:
+        if end_date is None or end_date == '':
             end_date = datetime.now().strftime('%Y-%m-%d')
         else:
             end_date = pd.to_datetime(end_date).strftime('%Y-%m-%d')
@@ -331,13 +297,16 @@ class ETFScreener:
         start_date = (pd.to_datetime(end_date) - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
         
         etf_list_df = self.db_manager.query_etf_list()
+        if not etf_list_df.empty:
+            etf_name_map = etf_list_df.set_index('code')['name'].to_dict()
+        else:
+            etf_name_map = {}
         
         if etf_list_df.empty:
             return pd.DataFrame()
         
         codes = self._get_all_codes(1000)
         
-        print(f"[DEBUG] screen_by_volume: {len(codes)} codes to process")
         
         results = []
         
@@ -348,28 +317,17 @@ class ETFScreener:
                 if df.empty or len(df) < self.min_days:
                     continue
                 
-                print(f"[DEBUG] Processing code {i+1}/{len(codes)}: {code}, {len(df)} rows")
                 
-                column_mapping = {
-                    'date': '日期',
-                    'open': '开盘',
-                    'high': '最高',
-                    'low': '最低',
-                    'close': '收盘',
-                    'volume': '成交量',
-                    'amount': '成交额'
-                }
+                from utils.helpers import DB_TO_CN_COLUMNS
                 
-                df = df.rename(columns=column_mapping)
+                df = df.rename(columns=DB_TO_CN_COLUMNS)
                 
                 avg_volume = df['成交量'].iloc[-lookback_days:].mean()
                 latest_volume = df['成交量'].iloc[-1]
                 
                 if latest_volume > avg_volume * min_volume_ratio:
-                    name_row = etf_list_df[etf_list_df['code'] == code]
-                    etf_name = name_row.iloc[0]['name'] if len(name_row) > 0 else ''
+                    etf_name = etf_name_map.get(code, '')
                     
-                    print(f"[DEBUG] MATCH FOUND: {code} - volume ratio: {latest_volume/avg_volume:.2f}")
                     
                     results.append({
                         'code': code,
@@ -385,5 +343,4 @@ class ETFScreener:
                 print(f"[ERROR] Error processing {code}: {e}")
                 continue
         
-        print(f"[DEBUG] screen_by_volume: Found {len(results)} results")
         return pd.DataFrame(results) if results else pd.DataFrame()
