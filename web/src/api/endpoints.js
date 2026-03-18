@@ -46,3 +46,9 @@ export const screeningAPI = {
   getBollinger: (params) => api.get('/screening/bollinger', { params }),
   getVolume: (params) => api.get('/screening/volume', { params })
 }
+
+export const backtestAPI = {
+  run: (params) => api.post('/backtest/run', null, { params }),
+  getProgress: (taskId) => api.get(`/backtest/progress/${taskId}`),
+  getStrategies: () => api.get('/backtest/strategies')
+}

@@ -25,6 +25,11 @@ const routes = [
     path: '/screening',
     name: 'Screening',
     component: () => import('../views/Screening.vue')
+  },
+  {
+    path: '/backtest',
+    name: 'Backtest',
+    component: () => import('../views/Backtest.vue')
   }
 ]
 

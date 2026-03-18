@@ -5,6 +5,45 @@ from strategies.bollinger_strategy import BollingerBandsStrategy, BBMeanReversio
 from strategies.combined_strategy import CombinedStrategy, AggressiveCombinedStrategy, ConservativeCombinedStrategy
 
 
+class TradeRecorder(bt.Strategy):
+    """交易记录器策略"""
+    params = (
+        ('strategy_name', 'default'),
+    )
+    
+    def __init__(self):
+        self.trades = []
+        self.current_position = None
+        self.cash = None
+    
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                self.cash = self.broker.getcash()
+                self.current_position = {
+                    'type': '买入',
+                    'date': self.data.datetime.date(0).strftime('%Y-%m-%d'),
+                    'price': order.executed.price,
+                    'size': order.executed.size,
+                    'value': order.executed.price * order.executed.size,
+                    'cash': self.cash
+                }
+            elif order.issell():
+                if self.current_position:
+                    self.current_position['exit_date'] = self.data.datetime.date(0).strftime('%Y-%m-%d')
+                    self.current_position['exit_price'] = order.executed.price
+                    self.current_position['exit_value'] = order.executed.price * order.executed.size
+                    self.current_position['profit'] = self.current_position['exit_value'] - self.current_position['value']
+                    self.current_position['profit_pct'] = (self.current_position['profit'] / self.current_position['value']) * 100
+                    self.current_position['exit_cash'] = self.broker.getcash()
+                    self.trades.append(self.current_position.copy())
+                    self.current_position = None
+    
+    def get_trades(self):
+        """获取所有交易记录"""
+        return self.trades
+
+
 class BacktestEngine:
     
     def __init__(
@@ -33,7 +72,8 @@ class BacktestEngine:
         self,
         df: pd.DataFrame,
         strategy_class: bt.Strategy,
-        strategy_params: dict = None
+        strategy_params: dict = None,
+        strategy_name: str = 'unknown'
     ):
         df = self.prepare_data(df)
         
@@ -68,6 +108,11 @@ class BacktestEngine:
         strat = results[0]
         
         analyzer_results = self._extract_analytics(strat, cerebro)
+        
+        try:
+            analyzer_results['trades_list'] = strat.get_trades_log()
+        except:
+            analyzer_results['trades_list'] = []
         
         return analyzer_results, cerebro
     

@@ -9,6 +9,7 @@
             <router-link to="/realtime">实时行情</router-link>
             <router-link to="/history">历史数据</router-link>
             <router-link to="/screening">策略筛选</router-link>
+            <router-link to="/backtest">策略推演</router-link>
             <router-link to="/database">数据库</router-link>
           </nav>
         </div>

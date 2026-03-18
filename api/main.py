@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.config import get_settings
 
-from api.routers import realtime, history, database, screening
+from api.routers import realtime, history, database, screening, backtest
 
 settings = get_settings()
 
@@ -29,6 +29,7 @@ app.include_router(realtime.router)
 app.include_router(history.router)
 app.include_router(database.router)
 app.include_router(screening.router)
+app.include_router(backtest.router)
 
 
 @app.get("/")

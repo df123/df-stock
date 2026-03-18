@@ -20,6 +20,35 @@ class BollingerBandsStrategy(bt.Strategy):
         )
         
         self.buy_price = None
+        self.trades_log = []
+        self.current_trade = None
+
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            dt = self.data.datetime.date(0).strftime('%Y-%m-%d')
+            price = order.executed.price
+            size = order.executed.size
+            value = order.executed.value
+            
+            if order.isbuy():
+                self.current_trade = {
+                    'buy_date': dt,
+                    'buy_price': price,
+                    'size': size,
+                    'buy_value': value,
+                    'type': '买入'
+                }
+            elif order.issell() and self.current_trade:
+                self.current_trade['sell_date'] = dt
+                self.current_trade['sell_price'] = price
+                self.current_trade['sell_value'] = value
+                self.current_trade['profit'] = value - self.current_trade['buy_value']
+                self.current_trade['profit_pct'] = (value / self.current_trade['buy_value'] - 1) * 100
+                self.trades_log.append(self.current_trade.copy())
+                self.current_trade = None
+
+    def get_trades_log(self):
+        return self.trades_log
 
     def next(self):
         if not self.position:
@@ -55,6 +84,36 @@ class BBMeanReversionStrategy(bt.Strategy):
         
         bb_width = self.bb.lines.top - self.bb.lines.bot
         self.bb_position = (self.data.close - self.bb.lines.bot) / bb_width
+        
+        self.trades_log = []
+        self.current_trade = None
+
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            dt = self.data.datetime.date(0).strftime('%Y-%m-%d')
+            price = order.executed.price
+            size = order.executed.size
+            value = order.executed.value
+            
+            if order.isbuy():
+                self.current_trade = {
+                    'buy_date': dt,
+                    'buy_price': price,
+                    'size': size,
+                    'buy_value': value,
+                    'type': '买入'
+                }
+            elif order.issell() and self.current_trade:
+                self.current_trade['sell_date'] = dt
+                self.current_trade['sell_price'] = price
+                self.current_trade['sell_value'] = value
+                self.current_trade['profit'] = value - self.current_trade['buy_value']
+                self.current_trade['profit_pct'] = (value / self.current_trade['buy_value'] - 1) * 100
+                self.trades_log.append(self.current_trade.copy())
+                self.current_trade = None
+
+    def get_trades_log(self):
+        return self.trades_log
 
     def next(self):
         if not self.position:
@@ -85,6 +144,36 @@ class BBSqueezeStrategy(bt.Strategy):
         self.is_squeeze = self.bb_width < (self.bb_width_sma * self.p.squeeze_factor)
         
         self.sma = bt.indicators.SMA(self.data.close, period=self.p.period)
+        
+        self.trades_log = []
+        self.current_trade = None
+
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            dt = self.data.datetime.date(0).strftime('%Y-%m-%d')
+            price = order.executed.price
+            size = order.executed.size
+            value = order.executed.value
+            
+            if order.isbuy():
+                self.current_trade = {
+                    'buy_date': dt,
+                    'buy_price': price,
+                    'size': size,
+                    'buy_value': value,
+                    'type': '买入'
+                }
+            elif order.issell() and self.current_trade:
+                self.current_trade['sell_date'] = dt
+                self.current_trade['sell_price'] = price
+                self.current_trade['sell_value'] = value
+                self.current_trade['profit'] = value - self.current_trade['buy_value']
+                self.current_trade['profit_pct'] = (value / self.current_trade['buy_value'] - 1) * 100
+                self.trades_log.append(self.current_trade.copy())
+                self.current_trade = None
+
+    def get_trades_log(self):
+        return self.trades_log
 
     def next(self):
         if not self.position:

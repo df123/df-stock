@@ -21,6 +21,36 @@ class MACDStrategy(bt.Strategy):
         self.crossover = bt.indicators.CrossOver(self.macd.macd, self.macd.signal)
         self.macd_above_zero = self.macd.macd > 0
         self.macd_hist = self.macd.macd - self.macd.signal
+        
+        self.trades_log = []
+        self.current_trade = None
+
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            dt = self.data.datetime.date(0).strftime('%Y-%m-%d')
+            price = order.executed.price
+            size = order.executed.size
+            value = order.executed.value
+            
+            if order.isbuy():
+                self.current_trade = {
+                    'buy_date': dt,
+                    'buy_price': price,
+                    'size': size,
+                    'buy_value': value,
+                    'type': '买入'
+                }
+            elif order.issell() and self.current_trade:
+                self.current_trade['sell_date'] = dt
+                self.current_trade['sell_price'] = price
+                self.current_trade['sell_value'] = value
+                self.current_trade['profit'] = value - self.current_trade['buy_value']
+                self.current_trade['profit_pct'] = (value / self.current_trade['buy_value'] - 1) * 100
+                self.trades_log.append(self.current_trade.copy())
+                self.current_trade = None
+
+    def get_trades_log(self):
+        return self.trades_log
 
     def next(self):
         if not self.position:
@@ -54,6 +84,36 @@ class EnhancedMACDStrategy(bt.Strategy):
         
         if self.p.use_volume_confirm:
             self.sma_volume = bt.indicators.SMA(self.data.volume, period=20)
+        
+        self.trades_log = []
+        self.current_trade = None
+
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            dt = self.data.datetime.date(0).strftime('%Y-%m-%d')
+            price = order.executed.price
+            size = order.executed.size
+            value = order.executed.value
+            
+            if order.isbuy():
+                self.current_trade = {
+                    'buy_date': dt,
+                    'buy_price': price,
+                    'size': size,
+                    'buy_value': value,
+                    'type': '买入'
+                }
+            elif order.issell() and self.current_trade:
+                self.current_trade['sell_date'] = dt
+                self.current_trade['sell_price'] = price
+                self.current_trade['sell_value'] = value
+                self.current_trade['profit'] = value - self.current_trade['buy_value']
+                self.current_trade['profit_pct'] = (value / self.current_trade['buy_value'] - 1) * 100
+                self.trades_log.append(self.current_trade.copy())
+                self.current_trade = None
+
+    def get_trades_log(self):
+        return self.trades_log
 
     def next(self):
         if not self.position:

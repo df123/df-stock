@@ -39,6 +39,36 @@
         </el-form-item>
       </el-form>
       
+      <el-divider v-if="screeningData.length > 0" style="margin: 20px 0">
+        <span style="color: #909399; font-size: 14px">批量推演（金叉买入死叉卖出）</span>
+      </el-divider>
+      
+      <el-form v-if="screeningData.length > 0" :inline="true" :model="batchBacktestParams">
+        <el-form-item label="推演年限">
+          <el-select v-model="batchBacktestParams.years" placeholder="选择年限" style="width: 120px">
+            <el-option label="3年" :value="3" />
+            <el-option label="5年" :value="5" />
+            <el-option label="10年" :value="10" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="策略类型">
+          <el-select v-model="batchBacktestParams.strategyType" placeholder="选择策略" style="width: 150px" disabled>
+            <el-option label="MACD" value="macd" />
+            <el-option label="组合策略" value="combined" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="success" @click="runBatchBacktest" :loading="batchBacktestLoading" :disabled="batchBacktestRunning">
+            {{ batchBacktestRunning ? '推演中...' : '批量推演' }}
+          </el-button>
+        </el-form-item>
+        <el-form-item v-if="batchBacktestRunning">
+          <el-progress :percentage="batchBacktestProgress" :status="batchBacktestProgressStatus" style="width: 200px">
+            <span>{{ batchBacktestProgress }}%</span>
+          </el-progress>
+        </el-form-item>
+      </el-form>
+      
       <el-table :data="displayData" style="width: 100%" v-loading="loading" table-layout="auto" @row-click="handleRowClick">
         <el-table-column prop="code" label="代码" width="100">
           <template #default="{ row }">
@@ -87,6 +117,31 @@
             {{ (row.bb_position * 100).toFixed(3) }}%
           </template>
         </el-table-column>
+        <template v-if="queryParams.backtest && screeningData.length > 0 && screeningData[0].bt_return_rate !== undefined">
+          <el-table-column prop="bt_profit" label="收获金额" width="100" :formatter="formatBacktestNumber" />
+          <el-table-column prop="bt_return_rate" label="收益率" width="100">
+            <template #default="{ row }">
+              <span :style="{ color: (row.bt_return_rate || 0) >= 0 ? 'green' : 'red' }">
+                {{ ((row.bt_return_rate || 0) * 100).toFixed(2) }}%
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="bt_max_drawdown" label="最大回撤" width="100">
+            <template #default="{ row }">
+              <span style="color: red">
+                {{ ((row.bt_max_drawdown || 0) * 100).toFixed(2) }}%
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="bt_win_rate" label="胜率" width="100">
+            <template #default="{ row }">
+              <span :style="{ color: (row.bt_win_rate || 0) >= 0.5 ? 'green' : 'orange' }">
+                {{ ((row.bt_win_rate || 0) * 100).toFixed(2) }}%
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="bt_total_trades" label="交易次数" width="100" :formatter="formatBacktestNumber" />
+        </template>
       </el-table>
       
       <el-pagination
@@ -99,6 +154,33 @@
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
+
+      <el-alert
+        v-if="screeningData.length > 0 && screeningData[0].bt_return_rate !== undefined"
+        :title="`批量推演完成（${batchBacktestParams.years}年）`"
+        type="success"
+        :closable="false"
+        style="margin-top: 20px"
+      >
+        <template #default>
+          <div style="display: flex; gap: 30px; align-items: center">
+            <div>
+              <strong>平均收益率：</strong>
+              <span :style="{ color: getAverageReturnRate() >= 0 ? 'green' : 'red' }">
+                {{ (getAverageReturnRate() * 100).toFixed(2) }}%
+              </span>
+            </div>
+            <div>
+              <strong>盈利ETF数：</strong>
+              {{ getProfitCount() }} / {{ screeningData.length }}
+            </div>
+            <div>
+              <strong>平均胜率：</strong>
+              {{ (getAverageWinRate() * 100).toFixed(2) }}%
+            </div>
+          </div>
+        </template>
+      </el-alert>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="`${selectedEtf?.code || ''} - ${selectedEtf?.name || ''}`" width="90%" top="5vh">
@@ -113,9 +195,25 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue'
-import { screeningAPI } from '@/api/endpoints'
-import axios from 'axios'
+import { screeningAPI, historyAPI, backtestAPI } from '@/api/endpoints'
 import * as echarts from 'echarts'
+import {
+  LegendComponent,
+  TooltipComponent,
+  GridComponent,
+  DataZoomComponent
+} from 'echarts/components'
+import { LineChart, BarChart } from 'echarts/charts'
+import { ElMessage } from 'element-plus'
+
+echarts.use([
+  LegendComponent,
+  TooltipComponent,
+  GridComponent,
+  DataZoomComponent,
+  LineChart,
+  BarChart
+])
 
 const queryParams = ref({
   strategyType: 'combined',
@@ -142,6 +240,17 @@ const macdChartRef = ref(null)
 const mainChart = ref(null)
 const macdChart = ref(null)
 
+const batchBacktestParams = ref({
+  years: 10,
+  strategyType: 'macd'
+})
+const batchBacktestLoading = ref(false)
+const batchBacktestRunning = ref(false)
+const batchBacktestProgress = ref(0)
+const batchBacktestProgressStatus = ref('success')
+
+let resizeHandler = null
+
 const displayData = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   const end = start + pageSize.value
@@ -153,30 +262,32 @@ const screen = async () => {
   try {
     let response
     
+    const commonParams = {
+      end_date: queryParams.value.endDate,
+      period: queryParams.value.period,
+      lookback_days: queryParams.value.lookbackDays,
+      backtest: queryParams.value.backtest,
+      backtest_years: queryParams.value.backtestYears
+    }
+    
     switch (queryParams.value.strategyType) {
       case 'combined':
         response = await screeningAPI.getCombined({
-          end_date: queryParams.value.endDate,
-          period: queryParams.value.period,
-          lookback_days: queryParams.value.lookbackDays,
+          ...commonParams,
           require_macd_golden: queryParams.value.requireMacdGolden,
           require_bb_above_middle: queryParams.value.requireBbAboveMiddle
         })
         break
       case 'macd':
         response = await screeningAPI.getMACD({
-          end_date: queryParams.value.endDate,
-          period: queryParams.value.period,
-          lookback_days: queryParams.value.lookbackDays,
+          ...commonParams,
           include_golden_cross: queryParams.value.requireMacdGolden,
           include_death_cross: false
         })
         break
       case 'bollinger':
         response = await screeningAPI.getBollinger({
-          end_date: queryParams.value.endDate,
-          period: queryParams.value.period,
-          lookback_days: queryParams.value.lookbackDays,
+          ...commonParams,
           include_upper_break: true,
           include_lower_break: false,
           include_squeeze: false
@@ -184,9 +295,7 @@ const screen = async () => {
         break
       case 'volume':
         response = await screeningAPI.getVolume({
-          end_date: queryParams.value.endDate,
-          period: queryParams.value.period,
-          lookback_days: queryParams.value.lookbackDays,
+          ...commonParams,
           min_volume_ratio: 2.0
         })
         break
@@ -217,20 +326,14 @@ const loadChartData = async (code) => {
   try {
     const startDate = new Date()
     startDate.setMonth(startDate.getMonth() - 3)
-    const startDateStr = startDate.toISOString().slice(0, 10).replace(/-/g, '')
+    const startDateStr = `${startDate.getFullYear()}${String(startDate.getMonth() + 1).padStart(2, '0')}${String(startDate.getDate()).padStart(2, '0')}`
     
-    const response = await axios.get(`http://localhost:8000/api/history/${code}/indicators`, {
-      params: {
-        start_date: startDateStr,
-        indicators: 'all'
-      }
-    })
+    const response = await historyAPI.getWithIndicators(code, startDateStr, null, 'all')
     
-    if (response.data.success && response.data.data.length > 0) {
-      await nextTick()
+    if (response.success && response.data.length > 0) {
       await nextTick()
       initCharts()
-      updateCharts(response.data.data)
+      updateCharts(response.data)
     }
   } catch (error) {
     console.error('加载图表数据失败:', error)
@@ -240,17 +343,11 @@ const loadChartData = async (code) => {
 }
 
 const initCharts = () => {
-  console.log('initCharts called', {
-    mainChartRef: !!mainChartRef.value,
-    macdChartRef: !!macdChartRef.value
-  })
-  
   if (mainChartRef.value) {
     if (mainChart.value) {
       mainChart.value.dispose()
     }
     mainChart.value = echarts.init(mainChartRef.value)
-    console.log('Main chart initialized')
   }
   
   if (macdChartRef.value) {
@@ -258,19 +355,11 @@ const initCharts = () => {
       macdChart.value.dispose()
     }
     macdChart.value = echarts.init(macdChartRef.value)
-    console.log('MACD chart initialized')
   }
 }
 
 const updateCharts = (data) => {
-  console.log('updateCharts called', {
-    dataLength: data.length,
-    mainChart: !!mainChart.value,
-    macdChart: !!macdChart.value
-  })
-  
   if (!mainChart.value || !macdChart.value) {
-    console.error('Charts not initialized')
     return
   }
   
@@ -283,16 +372,9 @@ const updateCharts = (data) => {
   const macdSignals = data.map(d => d.macd_signal)
   const macdHists = data.map(d => d.macd_hist)
   
-  console.log('Data extracted', {
-    dates: dates.length,
-    closes: closes.length,
-    macds: macds.filter(m => m !== null).length,
-    macdSignals: macdSignals.filter(m => m !== null).length,
-    macdHists: macdHists.filter(m => m !== null).length
-  })
-  
   const mainOption = {
     tooltip: {
+      show: true,
       trigger: 'axis',
       axisPointer: {
         type: 'cross'
@@ -308,12 +390,20 @@ const updateCharts = (data) => {
       }
     },
     legend: {
-      data: ['收盘价', '布林带上轨', '布林带中轨', '布林带下轨']
+      show: true,
+      data: ['收盘价', '布林带上轨', '布林带中轨', '布林带下轨'],
+      selected: {
+        '收盘价': true,
+        '布林带上轨': true,
+        '布林带中轨': true,
+        '布林带下轨': true
+      }
     },
     grid: {
       left: '3%',
       right: '3%',
-      bottom: '3%',
+      top: '20%',
+      bottom: '20%',
       containLabel: true
     },
     xAxis: {
@@ -398,6 +488,7 @@ const updateCharts = (data) => {
   
   const macdOption = {
     tooltip: {
+      show: true,
       trigger: 'axis',
       axisPointer: {
         type: 'cross'
@@ -413,12 +504,19 @@ const updateCharts = (data) => {
       }
     },
     legend: {
-      data: ['MACD（快线）', '慢线（信号线）', '柱状图']
+      show: true,
+      data: ['MACD（快线）', '慢线（信号线）', '柱状图'],
+      selected: {
+        'MACD（快线）': true,
+        '慢线（信号线）': true,
+        '柱状图': true
+      }
     },
     grid: {
       left: '3%',
       right: '3%',
-      bottom: '3%',
+      top: '20%',
+      bottom: '20%',
       containLabel: true
     },
     xAxis: {
@@ -475,14 +573,7 @@ const updateCharts = (data) => {
       {
         name: '柱状图',
         type: 'bar',
-        data: macdHists.map((val, idx) => {
-          return {
-            value: val,
-            itemStyle: {
-              color: val >= 0 ? '#91cc75' : '#ee6666'
-            }
-          }
-        }),
+        data: macdHists,
         itemStyle: {
           color: (params) => {
             return params.value >= 0 ? '#91cc75' : '#ee6666'
@@ -492,8 +583,8 @@ const updateCharts = (data) => {
     ]
   }
   
-  mainChart.value.setOption(mainOption)
-  macdChart.value.setOption(macdOption)
+  mainChart.value.setOption(mainOption, { notMerge: true })
+  macdChart.value.setOption(macdOption, { notMerge: true })
 }
 
 const handleSizeChange = (val) => {
@@ -512,7 +603,7 @@ const formatNumber3 = (row, column, cellValue) => {
   return Number(cellValue).toFixed(3)
 }
 
-const formatSignalType = (row, column, cellValue) => {
+const formatSignalType = (_, __, cellValue) => {
   const signalTypeMap = {
     'MACD Golden Cross': 'MACD金叉',
     'MACD Death Cross': 'MACD死叉',
@@ -533,15 +624,79 @@ const getFundUrl = (code) => {
   return `http://fund.eastmoney.com/${cleanCode}.html`
 }
 
+const formatBacktestNumber = (row, column, cellValue) => {
+  if (cellValue === null || cellValue === undefined || cellValue === '') {
+    return '-'
+  }
+  return Number(cellValue).toFixed(2)
+}
+
+const getAverageReturnRate = () => {
+  const data = screeningData.value.filter(item => item.bt_return_rate !== null && item.bt_return_rate !== undefined)
+  if (data.length === 0) return 0
+  const sum = data.reduce((acc, item) => acc + (item.bt_return_rate || 0), 0)
+  return sum / data.length
+}
+
+const getProfitCount = () => {
+  return screeningData.value.filter(item => (item.bt_return_rate || 0) > 0).length
+}
+
+const getAverageWinRate = () => {
+  const data = screeningData.value.filter(item => item.bt_win_rate !== null && item.bt_win_rate !== undefined)
+  if (data.length === 0) return 0
+  const sum = data.reduce((acc, item) => acc + (item.bt_win_rate || 0), 0)
+  return sum / data.length
+}
+
+const runBatchBacktest = async () => {
+  if (screeningData.value.length === 0) {
+    ElMessage.warning('请先筛选ETF')
+    return
+  }
+
+  batchBacktestLoading.value = true
+  batchBacktestRunning.value = true
+  batchBacktestProgress.value = 0
+  
+  try {
+    const response = await screeningAPI.getCombined({
+      end_date: queryParams.value.endDate,
+      period: queryParams.value.period,
+      lookback_days: queryParams.value.lookbackDays,
+      require_macd_golden: queryParams.value.requireMacdGolden,
+      require_bb_above_middle: queryParams.value.requireBbAboveMiddle,
+      backtest: true,
+      backtest_years: batchBacktestParams.value.years
+    })
+    
+    if (response.success) {
+      screeningData.value = response.data
+      ElMessage.success(`批量推演完成（${batchBacktestParams.value.years}年）`)
+    }
+  } catch (error) {
+    console.error('批量推演失败:', error)
+    ElMessage.error('批量推演失败')
+  } finally {
+    batchBacktestLoading.value = false
+    batchBacktestRunning.value = false
+    batchBacktestProgress.value = 100
+  }
+}
+
 onMounted(() => {
   screen()
-  window.addEventListener('resize', () => {
-    mainChart.value?.resize()
-    macdChart.value?.resize()
-  })
+  resizeHandler = () => {
+    mainChart.value && mainChart.value.resize()
+    macdChart.value && macdChart.value.resize()
+  }
+  window.addEventListener('resize', resizeHandler)
 })
 
 onUnmounted(() => {
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler)
+  }
   if (mainChart.value) {
     mainChart.value.dispose()
   }
@@ -583,5 +738,21 @@ onUnmounted(() => {
 .macd-chart {
   width: 100%;
   height: 250px;
+}
+
+.el-dialog {
+  z-index: 2000 !important;
+}
+
+.el-dialog__body {
+  overflow: visible !important;
+}
+
+.backtest-results {
+  margin-top: 20px;
+}
+
+.backtest-results .el-descriptions {
+  margin-top: 20px;
 }
 </style>
