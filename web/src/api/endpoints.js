@@ -8,26 +8,6 @@ export const realtimeAPI = {
   search: (keyword, limit) => api.get(`/realtime/search?keyword=${keyword}&limit=${limit}`)
 }
 
-export const historyAPI = {
-  get: (symbol, startDate = null, endDate = null) => {
-    let url = `/history/${symbol}`
-    const params = []
-    if (startDate) params.push(`start_date=${startDate}`)
-    if (endDate) params.push(`end_date=${endDate}`)
-    if (params.length > 0) url += `?${params.join('&')}`
-    return api.get(url)
-  },
-  getWithIndicators: (symbol, startDate = null, endDate = null, indicators = 'all') => {
-    let url = `/history/${symbol}/indicators`
-    const params = []
-    if (startDate) params.push(`start_date=${startDate}`)
-    if (endDate) params.push(`end_date=${endDate}`)
-    params.push(`indicators=${indicators}`)
-    url += `?${params.join('&')}`
-    return api.get(url)
-  }
-}
-
 export const databaseAPI = {
   getStats: () => api.get('/db/stats'),
   getETFList: (params) => api.get('/db/etf_list', { params }),

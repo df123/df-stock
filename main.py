@@ -50,37 +50,6 @@ def handle_realtime(args):
             print(f"\n总共 {len(df)} 个ETF")
 
 
-def handle_history(args):
-    """历史数据查询"""
-    db_manager = DatabaseManager() if Config.DB_ENABLED else None
-    fetcher = ETFDataFetcher(db_manager=db_manager)
-    
-    if not args.symbol:
-        print("错误: 请指定ETF代码")
-        return
-    
-    end_date = args.end if args.end else DateUtils.get_today()
-    
-    print(f"\n=== ETF {args.symbol} 历史数据 ({args.start} ~ {end_date}) ===")
-    df = fetcher.get_etf_history(args.symbol, args.start, end_date, period=args.period)
-    
-    print(df.tail(args.rows).to_string())
-    
-    if args.indicators:
-        print("\n=== 技术指标 ===")
-        df = TechnicalIndicators.calculate_all(df)
-        
-        signals = TechnicalIndicators.get_latest_signals(df)
-        print(f"\n最新信号:")
-        for key, value in signals.items():
-            print(f"  {key}: {value}")
-    
-    if args.save:
-        filename = f"{args.symbol}_history_{args.start}_{end_date}.csv"
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"\n数据已保存到: {filename}")
-
-
 def handle_indicators(args):
     """技术指标分析"""
     db_manager = DatabaseManager() if Config.DB_ENABLED else None
@@ -312,7 +281,6 @@ def main():
         epilog="""
 示例:
   python main.py --action realtime --symbol 510300           # 查询实时行情
-  python main.py --action history --symbol 510300 --start 20230101  # 查询历史数据
   python main.py --action indicators --symbol 510300 --plot   # 技术指标分析
   python main.py --action screen --strategy macd                # MACD策略筛选
   python main.py --action backtest --strategy macd --symbol 510300  # MACD策略回测
@@ -323,18 +291,15 @@ def main():
     )
     
     parser.add_argument('--action', type=str, required=True,
-                       choices=['realtime', 'history', 'indicators', 'screen', 'backtest', 'db-query', 'update-etf-list'],
-                       help='操作类型: realtime(实时), history(历史), indicators(指标), screen(筛选), backtest(回测), db-query(数据库查询), update-etf-list(更新ETF列表)')
+                       choices=['realtime', 'indicators', 'screen', 'backtest', 'db-query', 'update-etf-list'],
+                       help='操作类型: realtime(实时), indicators(指标), screen(筛选), backtest(回测), db-query(数据库查询), update-etf-list(更新ETF列表)')
     
     parser.add_argument('--symbol', type=str, help='ETF代码，例如: 510300')
     parser.add_argument('--start', type=str, help='开始日期 (格式: YYYYMMDD)')
     parser.add_argument('--end', type=str, help='结束日期 (格式: YYYYMMDD)')
-    parser.add_argument('--period', type=str, default='daily', choices=['daily', 'weekly', 'monthly'],
-                       help='数据周期: daily(日线), weekly(周线), monthly(月线)')
     
     parser.add_argument('--rows', type=int, default=10, help='显示行数')
     parser.add_argument('--top', type=int, help='显示前N名涨跌幅')
-    parser.add_argument('--indicators', action='store_true', help='计算技术指标')
     parser.add_argument('--plot', action='store_true', help='绘制图表')
     parser.add_argument('--save', action='store_true', help='保存结果到文件')
     
@@ -360,8 +325,6 @@ def main():
     try:
         if args.action == 'realtime':
             handle_realtime(args)
-        elif args.action == 'history':
-            handle_history(args)
         elif args.action == 'indicators':
             handle_indicators(args)
         elif args.action == 'screen':

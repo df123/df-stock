@@ -19,37 +19,6 @@ class RealtimeData(BaseModel):
         from_attributes = True
 
 
-class HistoryData(BaseModel):
-    """历史数据模型"""
-    code: str = Field(..., description="ETF代码")
-    date: str = Field(..., description="日期")
-    open: Optional[float] = Field(None, description="开盘价")
-    high: Optional[float] = Field(None, description="最高价")
-    low: Optional[float] = Field(None, description="最低价")
-    close: Optional[float] = Field(None, description="收盘价")
-    volume: Optional[float] = Field(None, description="成交量")
-    amount: Optional[float] = Field(None, description="成交额")
-    
-    class Config:
-        from_attributes = True
-
-
-class IndicatorData(BaseModel):
-    """技术指标数据模型"""
-    date: str = Field(..., description="日期")
-    close: Optional[float] = Field(None, description="收盘价")
-    macd: Optional[float] = Field(None, description="MACD")
-    macd_signal: Optional[float] = Field(None, description="MACD信号线")
-    macd_hist: Optional[float] = Field(None, description="MACD柱状图")
-    bb_upper: Optional[float] = Field(None, description="布林带上轨")
-    bb_middle: Optional[float] = Field(None, description="布林带中轨")
-    bb_lower: Optional[float] = Field(None, description="布林带下轨")
-    rsi: Optional[float] = Field(None, description="RSI")
-    
-    class Config:
-        from_attributes = True
-
-
 class ScreeningRequest(BaseModel):
     """筛选请求模型"""
     strategy: str = Field(..., description="策略类型: macd, bb, combined, volume")

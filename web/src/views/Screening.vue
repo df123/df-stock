@@ -195,7 +195,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue'
-import { screeningAPI, historyAPI, backtestAPI } from '@/api/endpoints'
+import { screeningAPI, databaseAPI, backtestAPI } from '@/api/endpoints'
 import * as echarts from 'echarts'
 import {
   LegendComponent,
@@ -328,18 +328,190 @@ const loadChartData = async (code) => {
     startDate.setMonth(startDate.getMonth() - 3)
     const startDateStr = `${startDate.getFullYear()}${String(startDate.getMonth() + 1).padStart(2, '0')}${String(startDate.getDate()).padStart(2, '0')}`
     
-    const response = await historyAPI.getWithIndicators(code, startDateStr, null, 'all')
+    const response = await databaseAPI.queryHistory({ code, start_date: startDateStr })
     
     if (response.success && response.data.length > 0) {
+      // 计算技术指标
+      const dataWithIndicators = calculateIndicators(response.data)
+      
       await nextTick()
       initCharts()
-      updateCharts(response.data)
+      updateCharts(dataWithIndicators)
     }
   } catch (error) {
     console.error('加载图表数据失败:', error)
   } finally {
     loadingChart.value = false
   }
+}
+
+// 计算简单移动平均线
+const calculateSMA = (data, period) => {
+  const result = []
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      result.push(null)
+    } else {
+      let sum = 0
+      for (let j = 0; j < period; j++) {
+        sum += data[i - j]
+      }
+      result.push(sum / period)
+    }
+  }
+  return result
+}
+
+// 计算指数移动平均线
+const calculateEMA = (data, period) => {
+  const result = []
+  const multiplier = 2 / (period + 1)
+  
+  // 第一个EMA使用SMA
+  let ema = null
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      result.push(null)
+    } else if (i === period - 1) {
+      let sum = 0
+      for (let j = 0; j < period; j++) {
+        sum += data[i - j]
+      }
+      ema = sum / period
+      result.push(ema)
+    } else {
+      ema = (data[i] - ema) * multiplier + ema
+      result.push(ema)
+    }
+  }
+  return result
+}
+
+// 计算MACD
+const calculateMACD = (closes, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) => {
+  const fastEMA = calculateEMA(closes, fastPeriod)
+  const slowEMA = calculateEMA(closes, slowPeriod)
+  
+  const macdLine = []
+  for (let i = 0; i < closes.length; i++) {
+    if (fastEMA[i] === null || slowEMA[i] === null) {
+      macdLine.push(null)
+    } else {
+      macdLine.push(fastEMA[i] - slowEMA[i])
+    }
+  }
+  
+  // 过滤掉null值用于计算信号线
+  const validMacdLine = macdLine.filter(v => v !== null)
+  const signalLineValid = calculateEMA(validMacdLine, signalPeriod)
+  
+  // 将信号线映射回原始数组
+  const signalLine = []
+  let validIndex = 0
+  for (let i = 0; i < macdLine.length; i++) {
+    if (macdLine[i] === null) {
+      signalLine.push(null)
+    } else {
+      signalLine.push(signalLineValid[validIndex] || null)
+      validIndex++
+    }
+  }
+  
+  const histogram = []
+  for (let i = 0; i < macdLine.length; i++) {
+    if (macdLine[i] === null || signalLine[i] === null) {
+      histogram.push(null)
+    } else {
+      histogram.push(macdLine[i] - signalLine[i])
+    }
+  }
+  
+  return { macdLine, signalLine, histogram }
+}
+
+// 计算布林带
+const calculateBollingerBands = (closes, period = 20, stdDev = 2) => {
+  const sma = calculateSMA(closes, period)
+  const upper = []
+  const lower = []
+  
+  for (let i = 0; i < closes.length; i++) {
+    if (sma[i] === null) {
+      upper.push(null)
+      lower.push(null)
+    } else {
+      let sum = 0
+      for (let j = 0; j < period; j++) {
+        const diff = closes[i - j] - sma[i]
+        sum += diff * diff
+      }
+      const std = Math.sqrt(sum / period)
+      upper.push(sma[i] + stdDev * std)
+      lower.push(sma[i] - stdDev * std)
+    }
+  }
+  
+  return { middle: sma, upper, lower }
+}
+
+// 计算RSI
+const calculateRSI = (closes, period = 14) => {
+  const rsi = []
+  const changes = []
+  
+  for (let i = 1; i < closes.length; i++) {
+    changes.push(closes[i] - closes[i - 1])
+  }
+  
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period) {
+      rsi.push(null)
+    } else {
+      let gains = 0
+      let losses = 0
+      
+      for (let j = 0; j < period; j++) {
+        const change = changes[i - 1 - j]
+        if (change > 0) {
+          gains += change
+        } else {
+          losses -= change
+        }
+      }
+      
+      const avgGain = gains / period
+      const avgLoss = losses / period
+      
+      if (avgLoss === 0) {
+        rsi.push(100)
+      } else {
+        const rs = avgGain / avgLoss
+        rsi.push(100 - (100 / (1 + rs)))
+      }
+    }
+  }
+  
+  return rsi
+}
+
+// 计算所有技术指标
+const calculateIndicators = (data) => {
+  const closes = data.map(d => d.close)
+  
+  const { macdLine, signalLine, histogram } = calculateMACD(closes)
+  const { middle: bbMiddle, upper: bbUpper, lower: bbLower } = calculateBollingerBands(closes)
+  const rsi = calculateRSI(closes)
+  
+  return data.map((item, index) => ({
+    ...item,
+    macd: macdLine[index],
+    macd_signal: signalLine[index],
+    macd_hist: histogram[index],
+    bb_upper: bbUpper[index],
+    bb_middle: bbMiddle[index],
+    bb_lower: bbLower[index],
+    rsi: rsi[index]
+  }))
 }
 
 const initCharts = () => {
