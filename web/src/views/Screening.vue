@@ -277,14 +277,22 @@ const calculateEMA = (data, period) => {
   // 第一个EMA使用SMA
   let ema = null
   for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) {
+    if (data[i] === null) {
+      // 遇到null值，保持之前的有效EMA值
+      result.push(ema)
+    } else if (i < period - 1) {
       result.push(null)
     } else if (i === period - 1) {
+      // 计算初始SMA，只使用有效值
       let sum = 0
+      let count = 0
       for (let j = 0; j < period; j++) {
-        sum += data[i - j]
+        if (data[i - j] !== null) {
+          sum += data[i - j]
+          count++
+        }
       }
-      ema = sum / period
+      ema = count > 0 ? sum / count : null
       result.push(ema)
     } else {
       ema = (data[i] - ema) * multiplier + ema
@@ -308,21 +316,9 @@ const calculateMACD = (closes, fastPeriod = 12, slowPeriod = 26, signalPeriod = 
     }
   }
   
-  // 过滤掉null值用于计算信号线
-  const validMacdLine = macdLine.filter(v => v !== null)
-  const signalLineValid = calculateEMA(validMacdLine, signalPeriod)
-  
-  // 将信号线映射回原始数组
-  const signalLine = []
-  let validIndex = 0
-  for (let i = 0; i < macdLine.length; i++) {
-    if (macdLine[i] === null) {
-      signalLine.push(null)
-    } else {
-      signalLine.push(signalLineValid[validIndex] || null)
-      validIndex++
-    }
-  }
+  // 直接在macdLine上计算信号线，保持数据长度一致
+  // 修复：不先过滤null值，而是直接计算，确保慢线数据长度与快线一致
+  const signalLine = calculateEMA(macdLine, signalPeriod)
   
   const histogram = []
   for (let i = 0; i < macdLine.length; i++) {
@@ -455,8 +451,12 @@ const updateCharts = (data) => {
     tooltip: {
       show: true,
       trigger: 'axis',
+      confine: true,
       axisPointer: {
-        type: 'cross'
+        type: 'cross',
+        label: {
+          backgroundColor: '#6a7985'
+        }
       },
       formatter: function(params) {
         let result = params[0].axisValue + '<br/>'
@@ -569,8 +569,12 @@ const updateCharts = (data) => {
     tooltip: {
       show: true,
       trigger: 'axis',
+      confine: true,
       axisPointer: {
-        type: 'cross'
+        type: 'cross',
+        label: {
+          backgroundColor: '#6a7985'
+        }
       },
       formatter: function(params) {
         let result = params[0].axisValue + '<br/>'
