@@ -39,36 +39,6 @@
         </el-form-item>
       </el-form>
       
-      <el-divider v-if="screeningData.length > 0" style="margin: 20px 0">
-        <span style="color: #909399; font-size: 14px">批量推演（金叉买入死叉卖出）</span>
-      </el-divider>
-      
-      <el-form v-if="screeningData.length > 0" :inline="true" :model="batchBacktestParams">
-        <el-form-item label="推演年限">
-          <el-select v-model="batchBacktestParams.years" placeholder="选择年限" style="width: 120px">
-            <el-option label="3年" :value="3" />
-            <el-option label="5年" :value="5" />
-            <el-option label="10年" :value="10" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="策略类型">
-          <el-select v-model="batchBacktestParams.strategyType" placeholder="选择策略" style="width: 150px" disabled>
-            <el-option label="MACD" value="macd" />
-            <el-option label="组合策略" value="combined" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="success" @click="runBatchBacktest" :loading="batchBacktestLoading" :disabled="batchBacktestRunning">
-            {{ batchBacktestRunning ? '推演中...' : '批量推演' }}
-          </el-button>
-        </el-form-item>
-        <el-form-item v-if="batchBacktestRunning">
-          <el-progress :percentage="batchBacktestProgress" :status="batchBacktestProgressStatus" style="width: 200px">
-            <span>{{ batchBacktestProgress }}%</span>
-          </el-progress>
-        </el-form-item>
-      </el-form>
-      
       <el-table :data="displayData" style="width: 100%" v-loading="loading" table-layout="auto" @row-click="handleRowClick">
         <el-table-column prop="code" label="代码" width="100">
           <template #default="{ row }">
@@ -117,31 +87,6 @@
             {{ (row.bb_position * 100).toFixed(3) }}%
           </template>
         </el-table-column>
-        <template v-if="queryParams.backtest && screeningData.length > 0 && screeningData[0].bt_return_rate !== undefined">
-          <el-table-column prop="bt_profit" label="收获金额" width="100" :formatter="formatBacktestNumber" />
-          <el-table-column prop="bt_return_rate" label="收益率" width="100">
-            <template #default="{ row }">
-              <span :style="{ color: (row.bt_return_rate || 0) >= 0 ? 'green' : 'red' }">
-                {{ ((row.bt_return_rate || 0) * 100).toFixed(2) }}%
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="bt_max_drawdown" label="最大回撤" width="100">
-            <template #default="{ row }">
-              <span style="color: red">
-                {{ ((row.bt_max_drawdown || 0) * 100).toFixed(2) }}%
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="bt_win_rate" label="胜率" width="100">
-            <template #default="{ row }">
-              <span :style="{ color: (row.bt_win_rate || 0) >= 0.5 ? 'green' : 'orange' }">
-                {{ ((row.bt_win_rate || 0) * 100).toFixed(2) }}%
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="bt_total_trades" label="交易次数" width="100" :formatter="formatBacktestNumber" />
-        </template>
       </el-table>
       
       <el-pagination
@@ -154,33 +99,6 @@
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
-
-      <el-alert
-        v-if="screeningData.length > 0 && screeningData[0].bt_return_rate !== undefined"
-        :title="`批量推演完成（${batchBacktestParams.years}年）`"
-        type="success"
-        :closable="false"
-        style="margin-top: 20px"
-      >
-        <template #default>
-          <div style="display: flex; gap: 30px; align-items: center">
-            <div>
-              <strong>平均收益率：</strong>
-              <span :style="{ color: getAverageReturnRate() >= 0 ? 'green' : 'red' }">
-                {{ (getAverageReturnRate() * 100).toFixed(2) }}%
-              </span>
-            </div>
-            <div>
-              <strong>盈利ETF数：</strong>
-              {{ getProfitCount() }} / {{ screeningData.length }}
-            </div>
-            <div>
-              <strong>平均胜率：</strong>
-              {{ (getAverageWinRate() * 100).toFixed(2) }}%
-            </div>
-          </div>
-        </template>
-      </el-alert>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="`${selectedEtf?.code || ''} - ${selectedEtf?.name || ''}`" width="90%" top="5vh">
@@ -240,15 +158,6 @@ const macdChartRef = ref(null)
 const mainChart = ref(null)
 const macdChart = ref(null)
 
-const batchBacktestParams = ref({
-  years: 10,
-  strategyType: 'macd'
-})
-const batchBacktestLoading = ref(false)
-const batchBacktestRunning = ref(false)
-const batchBacktestProgress = ref(0)
-const batchBacktestProgressStatus = ref('success')
-
 let resizeHandler = null
 
 const displayData = computed(() => {
@@ -265,9 +174,7 @@ const screen = async () => {
     const commonParams = {
       end_date: queryParams.value.endDate,
       period: queryParams.value.period,
-      lookback_days: queryParams.value.lookbackDays,
-      backtest: queryParams.value.backtest,
-      backtest_years: queryParams.value.backtestYears
+      lookback_days: queryParams.value.lookbackDays
     }
     
     switch (queryParams.value.strategyType) {
@@ -796,66 +703,6 @@ const getFundUrl = (code) => {
   return `http://fund.eastmoney.com/${cleanCode}.html`
 }
 
-const formatBacktestNumber = (row, column, cellValue) => {
-  if (cellValue === null || cellValue === undefined || cellValue === '') {
-    return '-'
-  }
-  return Number(cellValue).toFixed(2)
-}
-
-const getAverageReturnRate = () => {
-  const data = screeningData.value.filter(item => item.bt_return_rate !== null && item.bt_return_rate !== undefined)
-  if (data.length === 0) return 0
-  const sum = data.reduce((acc, item) => acc + (item.bt_return_rate || 0), 0)
-  return sum / data.length
-}
-
-const getProfitCount = () => {
-  return screeningData.value.filter(item => (item.bt_return_rate || 0) > 0).length
-}
-
-const getAverageWinRate = () => {
-  const data = screeningData.value.filter(item => item.bt_win_rate !== null && item.bt_win_rate !== undefined)
-  if (data.length === 0) return 0
-  const sum = data.reduce((acc, item) => acc + (item.bt_win_rate || 0), 0)
-  return sum / data.length
-}
-
-const runBatchBacktest = async () => {
-  if (screeningData.value.length === 0) {
-    ElMessage.warning('请先筛选ETF')
-    return
-  }
-
-  batchBacktestLoading.value = true
-  batchBacktestRunning.value = true
-  batchBacktestProgress.value = 0
-  
-  try {
-    const response = await screeningAPI.getCombined({
-      end_date: queryParams.value.endDate,
-      period: queryParams.value.period,
-      lookback_days: queryParams.value.lookbackDays,
-      require_macd_golden: queryParams.value.requireMacdGolden,
-      require_bb_above_middle: queryParams.value.requireBbAboveMiddle,
-      backtest: true,
-      backtest_years: batchBacktestParams.value.years
-    })
-    
-    if (response.success) {
-      screeningData.value = response.data
-      ElMessage.success(`批量推演完成（${batchBacktestParams.value.years}年）`)
-    }
-  } catch (error) {
-    console.error('批量推演失败:', error)
-    ElMessage.error('批量推演失败')
-  } finally {
-    batchBacktestLoading.value = false
-    batchBacktestRunning.value = false
-    batchBacktestProgress.value = 100
-  }
-}
-
 onMounted(() => {
   screen()
   resizeHandler = () => {
@@ -918,13 +765,5 @@ onUnmounted(() => {
 
 .el-dialog__body {
   overflow: visible !important;
-}
-
-.backtest-results {
-  margin-top: 20px;
-}
-
-.backtest-results .el-descriptions {
-  margin-top: 20px;
 }
 </style>
