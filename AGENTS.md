@@ -43,6 +43,26 @@ npm run build
 npm run preview
 ```
 
+### 一键启动服务
+```bash
+# 使用一键启动脚本（推荐）
+./scripts/start.sh
+
+# 脚本功能：
+# 1. 检查端口占用（8000和8080端口）
+# 2. 自动关闭已占用端口的进程
+# 3. 启动后端API服务（端口8000）
+# 4. 启动前端Web服务（端口8080）
+# 5. 输出服务地址和日志位置
+
+# 查看服务日志
+tail -f logs/api.log    # 后端日志
+tail -f logs/web.log    # 前端日志
+
+# 停止服务
+kill <API_PID> <WEB_PID>  # 使用脚本输出的PID
+```
+
 ### 测试单独组件
 ```bash
 # 测试数据获取
@@ -258,10 +278,11 @@ main.py               # CLI入口点
 **脚本文件管理规范：**
 - ✅ Shell脚本统一存放：`scripts/` 文件夹
   - `scripts/install.sh` - 环境依赖安装脚本
+  - `scripts/start.sh` - 一键启动脚本（推荐使用）
   - `scripts/start_api.sh` - 后端API服务启动脚本
   - `scripts/start_web.sh` - Web服务启动指南脚本
 - ✅ 所有 `.sh` 文件应添加可执行权限：`chmod +x scripts/*.sh`
-- ✅ 启动服务时从scripts目录执行：`./scripts/start_api.sh`
+- ✅ 启动服务时推荐使用一键启动脚本：`./scripts/start.sh`
 
 **数据库文件管理规范：**
 - ✅ 数据库文件统一存放：`db/` 文件夹
