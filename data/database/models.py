@@ -29,58 +29,6 @@ class ETFListModel:
         return ['code', 'name', 'fund_type']
 
 
-class ETFRealtimeModel:
-    """实时行情快照表"""
-    
-    TABLE_NAME = 'etf_realtime'
-    
-    @staticmethod
-    def create_table_sql() -> str:
-        return """
-        CREATE TABLE IF NOT EXISTS etf_realtime (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT NOT NULL,
-            name TEXT,
-            price REAL,
-            change_percent REAL,
-            change_amount REAL,
-            data_date TEXT,
-            fund_type TEXT,
-            snapshot_date TEXT NOT NULL,
-            snapshot_time TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(code, snapshot_date)
-        )
-        """
-    
-    @staticmethod
-    def get_columns() -> List[str]:
-        return ['code', 'name', 'price', 'change_percent', 'change_amount', 
-                'data_date', 'fund_type', 'snapshot_date', 'snapshot_time']
-    
-    @staticmethod
-    def from_dataframe(df: pd.DataFrame, snapshot_date: str = None) -> List[Dict[str, Any]]:
-        if snapshot_date is None:
-            snapshot_date = datetime.now().strftime('%Y-%m-%d')
-        snapshot_time = datetime.now().strftime('%H:%M:%S')
-        
-        records = []
-        for _, row in df.iterrows():
-            record = {
-                'code': str(row.get('代码', row.get('基金代码', ''))),
-                'name': str(row.get('名称', row.get('基金名称', ''))),
-                'price': float(row.get('最新价', 0)) if pd.notna(row.get('最新价')) else None,
-                'change_percent': float(row.get('涨跌幅', 0)) if pd.notna(row.get('涨跌幅')) else None,
-                'change_amount': float(row.get('涨跌额', 0)) if pd.notna(row.get('涨跌额')) else None,
-                'data_date': str(row.get('数据日期', snapshot_date)),
-                'fund_type': str(row.get('基金类型', '')),
-                'snapshot_date': snapshot_date,
-                'snapshot_time': snapshot_time
-            }
-            records.append(record)
-        return records
-
-
 class ETFHistoryModel:
     """历史行情表"""
     

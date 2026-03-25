@@ -62,9 +62,6 @@ def test_data_fetcher():
         if len(etf_list) > 0:
             first_code = etf_list.iloc[0]['代码']
             print(f"  第一个ETF代码: {first_code}")
-            
-            realtime = fetcher.get_etf_realtime()
-            print(f"✓ 获取实时行情成功，共 {len(realtime)} 个ETF")
         
         return True
     except Exception as e:

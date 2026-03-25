@@ -31,16 +31,16 @@ def test_database():
     fetcher = ETFDataFetcher(db_manager=db_manager)
     
     try:
-        # 获取实时数据
-        print("   正在获取实时数据...")
-        realtime_df = fetcher.get_etf_realtime(save_to_db=True)
-        print(f"   ✓ 获取到 {len(realtime_df)} 条实时数据")
+        # 获取ETF列表
+        print("   正在获取ETF列表...")
+        etf_list = fetcher.get_etf_list(save_to_db=True)
+        print(f"   ✓ 获取到 {len(etf_list)} 个ETF")
         
-        if not realtime_df.empty:
-            print(f"   示例数据:\n{realtime_df.head(3)}\n")
+        if not etf_list.empty:
+            print(f"   示例数据:\n{etf_list.head(3)}\n")
             
             # 获取某个ETF的历史数据
-            test_code = realtime_df.iloc[0]['代码']
+            test_code = etf_list.iloc[0]['代码']
             print(f"   正在获取 {test_code} 的历史数据...")
             history_df = fetcher.get_etf_history(test_code, '20240101', '20240226', save_to_db=True)
             print(f"   ✓ 获取到 {len(history_df)} 条历史数据")
@@ -53,13 +53,9 @@ def test_database():
     # 4. 查询数据库中的数据
     print("4. 查询数据库中的数据...")
     
-    # 查询实时数据
-    realtime_from_db = db_manager.query_etf_realtime()
-    print(f"   ✓ 数据库中有 {len(realtime_from_db)} 条实时数据")
-    
     # 查询历史数据
-    if not realtime_df.empty:
-        test_code = realtime_df.iloc[0]['代码']
+    if not etf_list.empty:
+        test_code = etf_list.iloc[0]['代码']
         history_from_db = db_manager.query_etf_history(test_code)
         print(f"   ✓ 数据库中有 {len(history_from_db)} 条历史数据 (代码: {test_code})")
     
@@ -68,9 +64,6 @@ def test_database():
     # 5. 导出数据测试
     print("5. 测试数据导出...")
     try:
-        export_file = db_manager.export_to_csv('etf_realtime')
-        print(f"   ✓ 实时数据已导出到: {export_file}")
-        
         export_file = db_manager.export_to_csv('etf_history')
         print(f"   ✓ 历史数据已导出到: {export_file}")
     except Exception as e:

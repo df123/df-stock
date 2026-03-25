@@ -77,38 +77,6 @@ async def get_etf_list(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/query/etf_realtime", response_model=ApiResponse)
-async def query_etf_realtime(
-    code: Optional[str] = Query(None, description="ETF代码"),
-    snapshot_date: Optional[str] = Query(None, description="快照日期"),
-    limit: Optional[int] = Query(100, description="返回记录数限制")
-):
-    """
-    查询实时行情数据
-    
-    - **code**: ETF代码
-    - **snapshot_date**: 快照日期(YYYY-MM-DD)
-    - **limit**: 返回记录数限制
-    """
-    init_services()
-    
-    try:
-        df = db_manager.query_etf_realtime(code, snapshot_date)
-        
-        if limit:
-            df = df.head(limit)
-        
-        data = df.to_dict('records')
-        
-        return ApiResponse(
-            success=True,
-            message=f"查询到 {len(data)} 条实时数据",
-            data=data
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/query/etf_history", response_model=ApiResponse)
 async def query_etf_history(
     code: Optional[str] = Query(None, description="ETF代码"),
@@ -214,12 +182,12 @@ async def export_table(table: str):
     """
     导出表数据为CSV
     
-    - **table**: 表名 (etf_realtime, etf_history, screening_results, backtest_results)
+    - **table**: 表名 (etf_history, screening_results, backtest_results)
     """
     init_services()
     
     try:
-        valid_tables = ['etf_realtime', 'etf_history', 'screening_results', 'backtest_results']
+        valid_tables = ['etf_history', 'screening_results', 'backtest_results']
         if table not in valid_tables:
             return ApiResponse(
                 success=False,

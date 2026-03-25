@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.config import get_settings
 
-from api.routers import realtime, database, screening, backtest
+from api.routers import database, screening, backtest
 
 settings = get_settings()
 
@@ -25,7 +25,6 @@ app.add_middleware(
 )
 
 # 注册路由
-app.include_router(realtime.router)
 app.include_router(database.router)
 app.include_router(screening.router)
 app.include_router(backtest.router)

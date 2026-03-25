@@ -10,19 +10,13 @@ class ETFDataFetcher:
     ETF数据获取类
     
     数据源说明：
-    - 实时行情: 同花顺（基金净值数据）
     - ETF列表: 新浪财经
     - 历史数据: 新浪财经
     
     注意: 前端链接使用东方财富网站查看K线图
-    由于其他数据源的限制，实时行情使用同花顺的基金净值数据
     """
     
     def __init__(self, db_manager=None):
-        self._cache = {
-            'realtime': None,
-            'timestamp': None
-        }
         self._db_manager = db_manager
     
     def get_etf_list(self, save_to_db: bool = True) -> pd.DataFrame:
@@ -34,56 +28,6 @@ class ETFDataFetcher:
         
         if save_to_db and self._db_manager:
             self._db_manager.save_etf_list(df)
-        
-        return df
-    
-    def get_etf_realtime(self, symbol: Optional[str] = None, save_to_db: bool = True) -> pd.DataFrame:
-        """
-        获取ETF实时净值数据
-        数据源: 同花顺（基金净值数据）
-        
-        注意: 同花顺返回的是基金净值数据，不是实时市场行情
-        主要字段: 基金代码, 基金名称, 当前-单位净值, 增长率
-        """
-        if self._cache['realtime'] is None:
-            try:
-                df = ak.fund_etf_spot_ths()
-                
-                # 转换为统一的列名格式
-                if not df.empty:
-                    df = df.rename(columns={
-                        '基金代码': '代码',
-                        '基金名称': '名称',
-                        '当前-单位净值': '最新价',
-                        '增长率': '涨跌幅',
-                        '增长值': '涨跌额',
-                        '最新-交易日': '数据日期'
-                    })
-                    
-                    # 将增长率从字符串转换为数值（如 "6.43" -> 6.43）
-                    if '涨跌幅' in df.columns:
-                        df['涨跌幅'] = pd.to_numeric(df['涨跌幅'], errors='coerce')
-                    
-                    if '最新价' in df.columns:
-                        df['最新价'] = pd.to_numeric(df['最新价'], errors='coerce')
-                    
-                    # 过滤掉非ETF数据
-                    df = df[df['基金类型'] == '股票型']
-                    
-                    # 保存到数据库
-                    if save_to_db and self._db_manager:
-                        self._db_manager.save_etf_realtime(df)
-                    
-                    self._cache['realtime'] = df
-                    self._cache['timestamp'] = datetime.now()
-            except Exception as e:
-                print(f"获取实时数据失败: {e}")
-                return pd.DataFrame()
-        
-        df = self._cache['realtime'].copy() if self._cache['realtime'] is not None else pd.DataFrame()
-        
-        if symbol and not df.empty:
-            df = df[df['代码'].astype(str).str.contains(str(symbol), na=False)]
         
         return df
     
@@ -153,40 +97,6 @@ class ETFDataFetcher:
         result = df[df['名称'].str.contains(keyword, na=False)]
         return result
     
-    def get_top_gainers(self, top_n: int = 10) -> pd.DataFrame:
-        """
-        获取涨幅前N名
-        数据源: 同花顺
-        """
-        df = self.get_etf_realtime()
-        
-        if not df.empty and '涨跌幅' in df.columns:
-            df_sorted = df.sort_values('涨跌幅', ascending=False)
-            return df_sorted.head(top_n)
-        
-        return pd.DataFrame()
-    
-    def get_top_losers(self, top_n: int = 10) -> pd.DataFrame:
-        """
-        获取跌幅前N名
-        数据源: 同花顺
-        """
-        df = self.get_etf_realtime()
-        
-        if not df.empty and '涨跌幅' in df.columns:
-            df_sorted = df.sort_values('涨跌幅', ascending=True)
-            return df_sorted.head(top_n)
-        
-        return pd.DataFrame()
-    
-    def clear_cache(self):
-        """清除缓存"""
-        self._cache = {
-            'realtime': None,
-            'timestamp': None
-        }
-
-
 if __name__ == '__main__':
     fetcher = ETFDataFetcher()
     
@@ -194,14 +104,6 @@ if __name__ == '__main__':
     etf_list = fetcher.get_etf_list()
     print(f"Total ETFs: {len(etf_list)}")
     print(etf_list.head()[['代码', '名称', '最新价', '涨跌幅']].to_string(index=False))
-    
-    print("\n=== Real-time Data Sample (Tonghuashun) ===")
-    realtime = fetcher.get_etf_realtime()
-    print(f"Total realtime quotes: {len(realtime)}")
-    if not realtime.empty:
-        print("\nTop 5 Gainers:")
-        top_gainers = fetcher.get_top_gainers(5)
-        print(top_gainers[['代码', '名称', '最新价', '涨跌幅']].to_string(index=False))
     
     print("\n=== Historical Data Sample (Sina) ===")
     history = fetcher.get_etf_history('510300', '20240201', '20240226')

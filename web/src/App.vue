@@ -5,11 +5,9 @@
         <div class="header-content">
           <h1>ETF量化分析系统</h1>
           <nav>
-            <router-link to="/">仪表盘</router-link>
-            <router-link to="/realtime">实时行情</router-link>
-            <router-link to="/screening">策略筛选</router-link>
-            <router-link to="/backtest">策略推演</router-link>
-            <router-link to="/database">数据库</router-link>
+            <router-link to="/database">数据库查询</router-link>
+            <router-link to="/backtest">策略回测</router-link>
+            <router-link to="/screening">ETF筛选</router-link>
           </nav>
         </div>
       </el-header>

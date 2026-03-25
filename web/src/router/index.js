@@ -3,13 +3,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    name: 'Dashboard',
-    component: () => import('../views/Dashboard.vue')
-  },
-  {
-    path: '/realtime',
-    name: 'Realtime',
-    component: () => import('../views/Realtime.vue')
+    name: 'Database',
+    component: () => import('../views/Database.vue')
   },
   {
     path: '/database',

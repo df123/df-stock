@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .models import (
-    ETFListModel, ETFRealtimeModel, ETFHistoryModel,
+    ETFListModel, ETFHistoryModel,
     ScreeningResultsModel, BacktestResultsModel
 )
 from config import Config
@@ -44,7 +44,6 @@ class DatabaseManager:
             cursor = conn.cursor()
             
             cursor.execute(ETFListModel.create_table_sql())
-            cursor.execute(ETFRealtimeModel.create_table_sql())
             cursor.execute(ETFHistoryModel.create_table_sql())
             cursor.execute(ScreeningResultsModel.create_table_sql())
             cursor.execute(BacktestResultsModel.create_table_sql())
@@ -94,23 +93,6 @@ class DatabaseManager:
         with self._get_connection() as conn:
             df = pd.read_sql_query(query, conn, params=params)
             return df
-    
-    def save_etf_realtime(self, df: pd.DataFrame, snapshot_date: str = None) -> int:
-        """
-        保存实时行情数据
-        Returns: 保存的记录数
-        """
-        if df.empty:
-            return 0
-        
-        records = ETFRealtimeModel.from_dataframe(df, snapshot_date)
-        
-        return self._batch_insert_or_replace(
-            ETFRealtimeModel.TABLE_NAME,
-            ETFRealtimeModel.get_columns(),
-            records,
-            conflict_columns=['code', 'snapshot_date']
-        )
     
     def save_etf_history(self, code: str, df: pd.DataFrame) -> int:
         """
@@ -231,28 +213,6 @@ class DatabaseManager:
             df = pd.read_sql_query(query, conn, params=params)
             return df
     
-    def query_etf_realtime(self, code: str = None, 
-                           snapshot_date: str = None) -> pd.DataFrame:
-        """
-        查询实时行情数据
-        """
-        query = "SELECT * FROM etf_realtime WHERE 1=1"
-        params = []
-        
-        if code:
-            query += " AND code = ?"
-            params.append(code)
-        
-        if snapshot_date:
-            query += " AND snapshot_date = ?"
-            params.append(snapshot_date)
-        
-        query += " ORDER BY snapshot_date DESC, snapshot_time DESC"
-        
-        with self._get_connection() as conn:
-            df = pd.read_sql_query(query, conn, params=params)
-            return df
-    
     def query_screening_results(self, strategy: str = None, 
                                 code: str = None,
                                 screen_date: str = None) -> pd.DataFrame:
@@ -338,17 +298,13 @@ class DatabaseManager:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
-            tables = ['etf_list', 'etf_realtime', 'etf_history', 
+            tables = ['etf_list', 'etf_history', 
                      'screening_results', 'backtest_results']
             
             for table in tables:
                 cursor.execute(f"SELECT COUNT(*) FROM {table}")
                 count = cursor.fetchone()[0]
                 stats[table] = count
-            
-            cursor.execute("SELECT MIN(snapshot_date), MAX(snapshot_date) FROM etf_realtime")
-            date_range = cursor.fetchone()
-            stats['realtime_date_range'] = f"{date_range[0]} ~ {date_range[1]}"
             
             cursor.execute("SELECT MIN(date), MAX(date) FROM etf_history")
             date_range = cursor.fetchone()

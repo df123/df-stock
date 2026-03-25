@@ -11,23 +11,6 @@ from screening.stock_screener import ETFScreener
 from utils.helpers import VisualizationUtils
 
 
-def example_1_realtime_data():
-    """示例1: 获取实时行情"""
-    print("\n" + "="*60)
-    print("示例1: 获取ETF实时行情")
-    print("="*60)
-    
-    fetcher = ETFDataFetcher()
-    
-    top_gainers = fetcher.get_top_gainers(5)
-    print("涨幅前5名:")
-    print(top_gainers[['代码', '名称', '最新价', '涨跌幅']])
-    
-    print("\n特定ETF实时行情 (510300 沪深300ETF):")
-    etf_info = fetcher.get_etf_realtime('510300')
-    print(etf_info[['代码', '名称', '最新价', '涨跌幅', '成交量']].to_string())
-
-
 def example_2_technical_indicators():
     """示例2: 计算技术指标"""
     print("\n" + "="*60)
@@ -174,7 +157,6 @@ def main():
     print("="*60)
     
     examples = [
-        ("获取实时行情", example_1_realtime_data),
         ("计算技术指标", example_2_technical_indicators),
         ("MACD策略回测", example_3_macd_backtest),
         ("多策略对比", example_4_strategy_comparison),
