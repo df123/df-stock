@@ -79,3 +79,4 @@ dist/
 dist-ssr/
 *.local
 scripts/stop.sh
+logs/service_pids.txt
