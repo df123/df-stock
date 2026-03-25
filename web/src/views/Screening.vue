@@ -42,7 +42,7 @@
       <el-table :data="displayData" style="width: 100%" v-loading="loading" table-layout="auto" @row-click="handleRowClick">
         <el-table-column prop="code" label="代码" width="100">
           <template #default="{ row }">
-            <el-link type="primary" :href="getFundUrl(row.code)" target="_blank" :underline="false" @click.stop>
+            <el-link type="primary" :href="getFundUrl(row.code)" target="_blank" :underline="'never'" @click.stop>
               {{ row.code }}
             </el-link>
           </template>
@@ -101,37 +101,83 @@
       />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="`${selectedEtf?.code || ''} - ${selectedEtf?.name || ''}`" width="90%" top="5vh">
-      <div v-loading="loadingChart" class="chart-container">
-        <div ref="mainChartRef" class="main-chart"></div>
-        <div ref="macdChartRef" class="macd-chart"></div>
+    <el-dialog v-model="dialogVisible" :title="`${selectedEtf?.code || ''} - ${selectedEtf?.name || ''}`" width="90%" top="5vh" @opened="handleDialogOpened">
+      <div v-loading="loadingChart" class="chart-dialog-container">
+        <!-- 图表控制面板 -->
+        <div class="chart-controls">
+          <el-checkbox-group v-model="visibleCharts">
+            <el-checkbox value="main">主图表</el-checkbox>
+            <el-checkbox value="macd">MACD</el-checkbox>
+            <el-checkbox value="rsi">RSI</el-checkbox>
+            <el-checkbox value="kdj">KDJ</el-checkbox>
+          </el-checkbox-group>
+        </div>
+
+        <!-- 图表容器 -->
+        <div class="charts-wrapper">
+          <!-- 主图表 -->
+          <IndicatorChart
+            ref="mainChartRef"
+            v-if="visibleCharts.includes('main')"
+            chart-id="screening-main"
+            chart-type="main"
+            :data="chartData"
+            height="350px"
+            :show-data-zoom="true"
+            @legend-select-changed="handleLegendChange"
+            @chart-ready="handleChartReady"
+          />
+
+          <!-- MACD图表 -->
+          <IndicatorChart
+            ref="macdChartRef"
+            v-if="visibleCharts.includes('macd')"
+            chart-id="screening-macd"
+            chart-type="macd"
+            :data="chartData"
+            height="250px"
+            :show-data-zoom="true"
+            @legend-select-changed="handleLegendChange"
+            @chart-ready="handleChartReady"
+          />
+
+          <!-- RSI图表 -->
+          <IndicatorChart
+            ref="rsiChartRef"
+            v-if="visibleCharts.includes('rsi')"
+            chart-id="screening-rsi"
+            chart-type="rsi"
+            :data="chartData"
+            height="200px"
+            :show-data-zoom="true"
+            @legend-select-changed="handleLegendChange"
+            @chart-ready="handleChartReady"
+          />
+
+          <!-- KDJ图表 -->
+          <IndicatorChart
+            ref="kdjChartRef"
+            v-if="visibleCharts.includes('kdj')"
+            chart-id="screening-kdj"
+            chart-type="kdj"
+            :data="chartData"
+            height="200px"
+            :show-data-zoom="true"
+            @legend-select-changed="handleLegendChange"
+            @chart-ready="handleChartReady"
+          />
+        </div>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { screeningAPI, databaseAPI, backtestAPI } from '@/api/endpoints'
-import * as echarts from 'echarts'
-import {
-  LegendComponent,
-  TooltipComponent,
-  GridComponent,
-  DataZoomComponent
-} from 'echarts/components'
-import { LineChart, BarChart } from 'echarts/charts'
+import IndicatorChart from '@/components/charts/IndicatorChart.vue'
 import { ElMessage } from 'element-plus'
-
-echarts.use([
-  LegendComponent,
-  TooltipComponent,
-  GridComponent,
-  DataZoomComponent,
-  LineChart,
-  BarChart
-])
 
 const queryParams = ref({
   strategyType: 'combined',
@@ -152,12 +198,35 @@ const dialogVisible = ref(false)
 const selectedEtf = ref(null)
 const loadingChart = ref(false)
 
+// 图表数据
+const chartData = ref([])
+
+// 可见的图表类型
+const visibleCharts = ref(['main', 'macd'])
+
+// 图表引用
 const mainChartRef = ref(null)
 const macdChartRef = ref(null)
+const rsiChartRef = ref(null)
+const kdjChartRef = ref(null)
 
-const mainChart = ref(null)
-const macdChart = ref(null)
+// 图表引用映射
+const chartRefs = {
+  main: mainChartRef,
+  macd: macdChartRef,
+  rsi: rsiChartRef,
+  kdj: kdjChartRef
+}
 
+// 图表实例映射（用于访问图表方法）
+const chartInstances = ref({
+  main: null,
+  macd: null,
+  rsi: null,
+  kdj: null
+})
+
+// 窗口resize处理
 let resizeHandler = null
 
 const displayData = computed(() => {
@@ -215,6 +284,7 @@ const screen = async () => {
     }
   } catch (error) {
     console.error('筛选失败:', error)
+    ElMessage.error('筛选失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -223,9 +293,12 @@ const screen = async () => {
 const handleRowClick = async (row) => {
   selectedEtf.value = row
   dialogVisible.value = true
-  await nextTick()
-  await nextTick()
-  await loadChartData(row.code)
+}
+
+const handleDialogOpened = async () => {
+  if (selectedEtf.value) {
+    await loadChartData(selectedEtf.value.code)
+  }
 }
 
 const loadChartData = async (code) => {
@@ -238,436 +311,46 @@ const loadChartData = async (code) => {
     const response = await databaseAPI.queryHistory({ code, start_date: startDateStr })
     
     if (response.success && response.data.length > 0) {
-      // 计算技术指标
-      const dataWithIndicators = calculateIndicators(response.data)
-      
-      await nextTick()
-      initCharts()
-      updateCharts(dataWithIndicators)
+      // 转换数据格式为图表所需格式
+      chartData.value = response.data.map(item => ({
+        date: item.date,
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+        volume: item.volume
+      }))
+    } else {
+      chartData.value = []
+      ElMessage.warning('未找到该ETF的历史数据')
     }
   } catch (error) {
     console.error('加载图表数据失败:', error)
+    ElMessage.error('加载图表数据失败')
+    chartData.value = []
   } finally {
     loadingChart.value = false
   }
 }
 
-// 计算简单移动平均线
-const calculateSMA = (data, period) => {
-  const result = []
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) {
-      result.push(null)
-    } else {
-      let sum = 0
-      for (let j = 0; j < period; j++) {
-        sum += data[i - j]
-      }
-      result.push(sum / period)
+const handleLegendChange = (event) => {
+  // 图例状态已经通过 ChartManager 自动同步到响应式状态
+  if (event.chartId && event.indicatorId !== undefined) {
+    const preferenceKey = `chart-legend-${event.chartId}-${event.indicatorId}`
+    try {
+      localStorage.setItem(preferenceKey, String(event.visible))
+    } catch (e) {
+      // localStorage 不可用（隐私模式、存储危等），忽略
     }
-  }
-  return result
-}
-
-// 计算指数移动平均线
-const calculateEMA = (data, period) => {
-  const result = []
-  const multiplier = 2 / (period + 1)
-  
-  // 第一个EMA使用SMA
-  let ema = null
-  for (let i = 0; i < data.length; i++) {
-    if (data[i] === null) {
-      // 遇到null值，保持之前的有效EMA值
-      result.push(ema)
-    } else if (i < period - 1) {
-      result.push(null)
-    } else if (i === period - 1) {
-      // 计算初始SMA，只使用有效值
-      let sum = 0
-      let count = 0
-      for (let j = 0; j < period; j++) {
-        if (data[i - j] !== null) {
-          sum += data[i - j]
-          count++
-        }
-      }
-      ema = count > 0 ? sum / count : null
-      result.push(ema)
-    } else {
-      ema = (data[i] - ema) * multiplier + ema
-      result.push(ema)
-    }
-  }
-  return result
-}
-
-// 计算MACD
-const calculateMACD = (closes, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) => {
-  const fastEMA = calculateEMA(closes, fastPeriod)
-  const slowEMA = calculateEMA(closes, slowPeriod)
-  
-  const macdLine = []
-  for (let i = 0; i < closes.length; i++) {
-    if (fastEMA[i] === null || slowEMA[i] === null) {
-      macdLine.push(null)
-    } else {
-      macdLine.push(fastEMA[i] - slowEMA[i])
-    }
-  }
-  
-  // 直接在macdLine上计算信号线，保持数据长度一致
-  // 修复：不先过滤null值，而是直接计算，确保慢线数据长度与快线一致
-  const signalLine = calculateEMA(macdLine, signalPeriod)
-  
-  const histogram = []
-  for (let i = 0; i < macdLine.length; i++) {
-    if (macdLine[i] === null || signalLine[i] === null) {
-      histogram.push(null)
-    } else {
-      histogram.push(macdLine[i] - signalLine[i])
-    }
-  }
-  
-  return { macdLine, signalLine, histogram }
-}
-
-// 计算布林带
-const calculateBollingerBands = (closes, period = 20, stdDev = 2) => {
-  const sma = calculateSMA(closes, period)
-  const upper = []
-  const lower = []
-  
-  for (let i = 0; i < closes.length; i++) {
-    if (sma[i] === null) {
-      upper.push(null)
-      lower.push(null)
-    } else {
-      let sum = 0
-      for (let j = 0; j < period; j++) {
-        const diff = closes[i - j] - sma[i]
-        sum += diff * diff
-      }
-      const std = Math.sqrt(sum / period)
-      upper.push(sma[i] + stdDev * std)
-      lower.push(sma[i] - stdDev * std)
-    }
-  }
-  
-  return { middle: sma, upper, lower }
-}
-
-// 计算RSI
-const calculateRSI = (closes, period = 14) => {
-  const rsi = []
-  const changes = []
-  
-  for (let i = 1; i < closes.length; i++) {
-    changes.push(closes[i] - closes[i - 1])
-  }
-  
-  for (let i = 0; i < closes.length; i++) {
-    if (i < period) {
-      rsi.push(null)
-    } else {
-      let gains = 0
-      let losses = 0
-      
-      for (let j = 0; j < period; j++) {
-        const change = changes[i - 1 - j]
-        if (change > 0) {
-          gains += change
-        } else {
-          losses -= change
-        }
-      }
-      
-      const avgGain = gains / period
-      const avgLoss = losses / period
-      
-      if (avgLoss === 0) {
-        rsi.push(100)
-      } else {
-        const rs = avgGain / avgLoss
-        rsi.push(100 - (100 / (1 + rs)))
-      }
-    }
-  }
-  
-  return rsi
-}
-
-// 计算所有技术指标
-const calculateIndicators = (data) => {
-  const closes = data.map(d => d.close)
-  
-  const { macdLine, signalLine, histogram } = calculateMACD(closes)
-  const { middle: bbMiddle, upper: bbUpper, lower: bbLower } = calculateBollingerBands(closes)
-  const rsi = calculateRSI(closes)
-  
-  return data.map((item, index) => ({
-    ...item,
-    macd: macdLine[index],
-    macd_signal: signalLine[index],
-    macd_hist: histogram[index],
-    bb_upper: bbUpper[index],
-    bb_middle: bbMiddle[index],
-    bb_lower: bbLower[index],
-    rsi: rsi[index]
-  }))
-}
-
-const initCharts = () => {
-  if (mainChartRef.value) {
-    if (mainChart.value) {
-      mainChart.value.dispose()
-    }
-    mainChart.value = echarts.init(mainChartRef.value)
-  }
-  
-  if (macdChartRef.value) {
-    if (macdChart.value) {
-      macdChart.value.dispose()
-    }
-    macdChart.value = echarts.init(macdChartRef.value)
   }
 }
 
-const updateCharts = (data) => {
-  if (!mainChart.value || !macdChart.value) {
-    return
+const handleChartReady = (event) => {
+  console.log('图表准备就绪:', event)
+  // 保存图表实例引用，以便后续调用其方法
+  if (event.chartId && chartRefs[event.chartType]) {
+    chartInstances.value[event.chartType] = chartRefs[event.chartType].value
   }
-  
-  const dates = data.map(d => d.date)
-  const closes = data.map(d => d.close)
-  const bbUppers = data.map(d => d.bb_upper)
-  const bbMiddles = data.map(d => d.bb_middle)
-  const bbLowers = data.map(d => d.bb_lower)
-  const macds = data.map(d => d.macd)
-  const macdSignals = data.map(d => d.macd_signal)
-  const macdHists = data.map(d => d.macd_hist)
-  
-  const mainOption = {
-    tooltip: {
-      show: true,
-      trigger: 'axis',
-      confine: true,
-      axisPointer: {
-        type: 'cross',
-        label: {
-          backgroundColor: '#6a7985'
-        }
-      },
-      formatter: function(params) {
-        let result = params[0].axisValue + '<br/>'
-        params.forEach(param => {
-          if (param.value !== null && param.value !== undefined) {
-            result += `${param.marker} ${param.seriesName}: ${Number(param.value).toFixed(3)}<br/>`
-          }
-        })
-        return result
-      }
-    },
-    legend: {
-      show: true,
-      data: ['收盘价', '布林带上轨', '布林带中轨', '布林带下轨'],
-      selected: {
-        '收盘价': true,
-        '布林带上轨': true,
-        '布林带中轨': true,
-        '布林带下轨': true
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '3%',
-      top: '20%',
-      bottom: '20%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: dates,
-      scale: true
-    },
-    yAxis: {
-      type: 'value',
-      scale: true,
-      axisLabel: {
-        formatter: '{value}'
-      }
-    },
-    dataZoom: [
-      {
-        type: 'inside',
-        start: 50,
-        end: 100
-      },
-      {
-        show: true,
-        type: 'slider',
-        top: '90%',
-        start: 50,
-        end: 100
-      }
-    ],
-    series: [
-      {
-        name: '收盘价',
-        type: 'line',
-        data: closes,
-        smooth: true,
-        itemStyle: {
-          color: '#5470c6'
-        },
-        lineStyle: {
-          width: 2
-        }
-      },
-      {
-        name: '布林带上轨',
-        type: 'line',
-        data: bbUppers,
-        smooth: true,
-        itemStyle: {
-          color: '#ee6666'
-        },
-        lineStyle: {
-          width: 1,
-          type: 'dashed'
-        }
-      },
-      {
-        name: '布林带中轨',
-        type: 'line',
-        data: bbMiddles,
-        smooth: true,
-        itemStyle: {
-          color: '#91cc75'
-        },
-        lineStyle: {
-          width: 1
-        }
-      },
-      {
-        name: '布林带下轨',
-        type: 'line',
-        data: bbLowers,
-        smooth: true,
-        itemStyle: {
-          color: '#ee6666'
-        },
-        lineStyle: {
-          width: 1,
-          type: 'dashed'
-        }
-      }
-    ]
-  }
-  
-  const macdOption = {
-    tooltip: {
-      show: true,
-      trigger: 'axis',
-      confine: true,
-      axisPointer: {
-        type: 'cross',
-        label: {
-          backgroundColor: '#6a7985'
-        }
-      },
-      formatter: function(params) {
-        let result = params[0].axisValue + '<br/>'
-        params.forEach(param => {
-          if (param.value !== null && param.value !== undefined) {
-            result += `${param.marker} ${param.seriesName}: ${Number(param.value).toFixed(3)}<br/>`
-          }
-        })
-        return result
-      }
-    },
-    legend: {
-      show: true,
-      data: ['MACD（快线）', '慢线（信号线）', '柱状图'],
-      selected: {
-        'MACD（快线）': true,
-        '慢线（信号线）': true,
-        '柱状图': true
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '3%',
-      top: '20%',
-      bottom: '20%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: dates,
-      scale: true
-    },
-    yAxis: {
-      type: 'value',
-      scale: true,
-      axisLabel: {
-        formatter: '{value}'
-      }
-    },
-    dataZoom: [
-      {
-        type: 'inside',
-        start: 50,
-        end: 100
-      },
-      {
-        show: true,
-        type: 'slider',
-        top: '90%',
-        start: 50,
-        end: 100
-      }
-    ],
-    series: [
-      {
-        name: 'MACD（快线）',
-        type: 'line',
-        data: macds,
-        smooth: true,
-        itemStyle: {
-          color: '#5470c6'
-        },
-        lineStyle: {
-          width: 2
-        }
-      },
-      {
-        name: '慢线（信号线）',
-        type: 'line',
-        data: macdSignals,
-        smooth: true,
-        itemStyle: {
-          color: '#fac858'
-        },
-        lineStyle: {
-          width: 2
-        }
-      },
-      {
-        name: '柱状图',
-        type: 'bar',
-        data: macdHists,
-        itemStyle: {
-          color: (params) => {
-            return params.value >= 0 ? '#91cc75' : '#ee6666'
-          }
-        }
-      }
-    ]
-  }
-  
-  mainChart.value.setOption(mainOption, { notMerge: true })
-  macdChart.value.setOption(macdOption, { notMerge: true })
 }
 
 const handleSizeChange = (val) => {
@@ -710,8 +393,12 @@ const getFundUrl = (code) => {
 onMounted(() => {
   screen()
   resizeHandler = () => {
-    mainChart.value && mainChart.value.resize()
-    macdChart.value && macdChart.value.resize()
+    // 调整所有可见图表的大小
+    Object.values(chartInstances.value).forEach(chartInstance => {
+      if (chartInstance && typeof chartInstance.resize === 'function') {
+        chartInstance.resize()
+      }
+    })
   }
   window.addEventListener('resize', resizeHandler)
 })
@@ -719,12 +406,6 @@ onMounted(() => {
 onUnmounted(() => {
   if (resizeHandler) {
     window.removeEventListener('resize', resizeHandler)
-  }
-  if (mainChart.value) {
-    mainChart.value.dispose()
-  }
-  if (macdChart.value) {
-    macdChart.value.dispose()
   }
 })
 </script>
@@ -748,19 +429,21 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.chart-container {
+.chart-dialog-container {
   min-height: 600px;
 }
 
-.main-chart {
-  width: 100%;
-  height: 350px;
+.chart-controls {
   margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
 }
 
-.macd-chart {
-  width: 100%;
-  height: 250px;
+.charts-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .el-dialog {
